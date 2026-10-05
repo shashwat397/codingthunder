@@ -1,0 +1,6 @@
+{
+  "name": "Codingthunder",
+  "description": "Production-ready coding education platform featuring full-stack courses, interactive tutorials, downloadable source code, and developer ebooks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
