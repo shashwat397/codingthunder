@@ -19,7 +19,11 @@ import {
   Upload,
   Download,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Database,
+  Copy,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -60,6 +64,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const [grantCourseId, setGrantCourseId] = useState('');
 
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
+  const [schemaCopied, setSchemaCopied] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   // Check admin authorization
   if (user && user.role !== 'admin') {
@@ -280,6 +286,22 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     }
   };
 
+  const handleSyncToSupabase = async () => {
+    setIsSyncingCloud(true);
+    setBannerNotice(null);
+    try {
+      const res = await api.syncCatalogToSupabaseCloud();
+      setBannerNotice(res.message);
+      if (res.success) {
+        await loadAllAdminData();
+      }
+    } catch (err: any) {
+      alert(err.message || 'Sync failed');
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-24">
       {/* Title & Topbar */}
@@ -294,6 +316,19 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
             Codingthunder Control Center
           </h1>
           <p className="text-xs text-slate-400 font-mono">Logged in as: {user?.email}</p>
+        </div>
+
+        {/* Action Button: Push to Supabase Cloud */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncToSupabase}
+            disabled={isSyncingCloud}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold transition-all cursor-pointer shadow-md disabled:opacity-50"
+            title="Push your courses, ebooks, and tutorials directly to Supabase cloud database so all users and devices immediately see them"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'Syncing to Cloud...' : '☁️ Push Catalog to Supabase Cloud'}</span>
+          </button>
         </div>
 
         {/* Navigation Tabs */}
@@ -1236,27 +1271,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                     />
                   </label>
                 )}
-
-                {/* Direct Storage / Google Drive Link Option */}
-                <div className="pt-2 border-t border-slate-800/80">
-                  <label className="block text-slate-400 mb-1 text-[11px] font-mono">
-                    OR Direct Cloud Download Link (Google Drive, Dropbox, AWS S3, Supabase Storage):
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://drive.google.com/... or https://your-storage.com/handbook.pdf"
-                    value={editingEbook.downloadFilePath?.startsWith('http') ? editingEbook.downloadFilePath : ''}
-                    onChange={(e) =>
-                      setEditingEbook({
-                        ...editingEbook,
-                        downloadFilePath: e.target.value,
-                        downloadFileName: editingEbook.downloadFileName || `${editingEbook.slug || 'ebook'}.pdf`,
-                        downloadFileSize: editingEbook.downloadFileSize || 'Cloud Hosted',
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-amber-400"
-                  />
-                </div>
               </div>
 
               {/* 2. COVER ARTWORK UPLOAD & PREVIEW */}

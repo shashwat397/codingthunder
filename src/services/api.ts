@@ -1,6 +1,21 @@
 import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings } from '../types/index.ts';
 import { getSeedData } from '../server/seed.ts';
-import { supabase, isSupabaseConfigured, supabaseGetCourses, supabaseGetTutorials, supabaseGetEbooks } from './supabase.ts';
+import { 
+  supabase, 
+  isSupabaseConfigured, 
+  supabaseGetCourses, 
+  supabaseGetTutorials, 
+  supabaseGetEbooks,
+  supabaseSaveCourse,
+  supabaseDeleteCourse,
+  supabaseSaveEbook,
+  supabaseDeleteEbook,
+  supabaseSaveTutorial,
+  supabaseDeleteTutorial,
+  rowToCourse,
+  rowToEbook,
+  rowToTutorial
+} from './supabase.ts';
 
 const TOKEN_KEY = 'codingthunder_auth_token';
 
@@ -280,7 +295,28 @@ class ApiService {
 
   // --- Courses ---
   public async getCourses(params?: { category?: string; level?: string; search?: string; freeOnly?: boolean; sort?: string }): Promise<{ courses: Course[] }> {
-    // 1. Try server endpoint
+    // 1. Try Supabase as authoritative
+    if (isSupabaseConfigured()) {
+      let sbCourses = await supabaseGetCourses(false);
+      if (sbCourses && sbCourses.length > 0) {
+        if (params?.category && params.category !== 'All') {
+          sbCourses = sbCourses.filter((c) => c.category === params.category);
+        }
+        if (params?.level && params.level !== 'All') {
+          sbCourses = sbCourses.filter((c) => c.level === params.level);
+        }
+        if (params?.freeOnly) {
+          sbCourses = sbCourses.filter((c) => c.isFree);
+        }
+        if (params?.search) {
+          const q = params.search.toLowerCase();
+          sbCourses = sbCourses.filter((c) => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
+        }
+        return { courses: sbCourses };
+      }
+    }
+
+    // 2. Try server endpoint
     const query = new URLSearchParams();
     if (params?.category) query.append('category', params.category);
     if (params?.level) query.append('level', params.level);
@@ -293,14 +329,6 @@ class ApiService {
     const serverRes = await this.request<{ courses: Course[] }>(`/courses${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.courses) && serverRes.courses.length > 0) {
       return { courses: serverRes.courses.filter((c) => !deleted.has(c.id)) };
-    }
-
-    // 2. Try Supabase
-    if (isSupabaseConfigured()) {
-      const sbCourses = await supabaseGetCourses();
-      if (sbCourses && sbCourses.length > 0) {
-        return { courses: sbCourses.filter((c) => !deleted.has(c.id)) };
-      }
     }
 
     // 3. Fallback to catalog seed
@@ -322,6 +350,14 @@ class ApiService {
   }
 
   public async getCourse(slugOrId: string): Promise<{ course: Course | null; enrollment: Enrollment | null }> {
+    if (isSupabaseConfigured()) {
+      const sbCourses = await supabaseGetCourses(true);
+      const found = sbCourses.find((c) => c.slug === slugOrId || c.id === slugOrId);
+      if (found) {
+        return { course: found, enrollment: null };
+      }
+    }
+
     const serverRes = await this.request<{ course: Course; enrollment: Enrollment | null }>(`/courses/${slugOrId}`);
     if (serverRes && serverRes.course) {
       return serverRes;
@@ -430,6 +466,20 @@ class ApiService {
 
   // --- Tutorials ---
   public async getTutorials(params?: { category?: string; search?: string }): Promise<{ tutorials: Tutorial[] }> {
+    if (isSupabaseConfigured()) {
+      let sbTutorials = await supabaseGetTutorials(false);
+      if (sbTutorials && sbTutorials.length > 0) {
+        if (params?.category && params.category !== 'All') {
+          sbTutorials = sbTutorials.filter((t) => t.category === params.category);
+        }
+        if (params?.search) {
+          const q = params.search.toLowerCase();
+          sbTutorials = sbTutorials.filter((t) => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
+        }
+        return { tutorials: sbTutorials };
+      }
+    }
+
     const query = new URLSearchParams();
     if (params?.category) query.append('category', params.category);
     if (params?.search) query.append('search', params.search);
@@ -439,13 +489,6 @@ class ApiService {
     const serverRes = await this.request<{ tutorials: Tutorial[] }>(`/tutorials${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.tutorials) && serverRes.tutorials.length > 0) {
       return { tutorials: serverRes.tutorials.filter((t) => !deleted.has(t.id)) };
-    }
-
-    if (isSupabaseConfigured()) {
-      const sbTutorials = await supabaseGetTutorials();
-      if (sbTutorials && sbTutorials.length > 0) {
-        return { tutorials: sbTutorials.filter((t) => !deleted.has(t.id)) };
-      }
     }
 
     let list = this.getLocalTutorials();
@@ -460,6 +503,14 @@ class ApiService {
   }
 
   public async getTutorial(slugOrId: string): Promise<{ tutorial: Tutorial | null }> {
+    if (isSupabaseConfigured()) {
+      const sbTutorials = await supabaseGetTutorials(true);
+      const found = sbTutorials.find((t) => t.slug === slugOrId || t.id === slugOrId);
+      if (found) {
+        return { tutorial: found };
+      }
+    }
+
     const serverRes = await this.request<{ tutorial: Tutorial }>(`/tutorials/${slugOrId}`);
     if (serverRes && serverRes.tutorial) return serverRes;
 
@@ -470,6 +521,17 @@ class ApiService {
 
   // --- Ebooks ---
   public async getEbooks(params?: { search?: string }): Promise<{ ebooks: Ebook[] }> {
+    if (isSupabaseConfigured()) {
+      let sbEbooks = await supabaseGetEbooks(false);
+      if (sbEbooks && sbEbooks.length > 0) {
+        if (params?.search) {
+          const q = params.search.toLowerCase();
+          sbEbooks = sbEbooks.filter((e) => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
+        }
+        return { ebooks: sbEbooks };
+      }
+    }
+
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
     const qs = query.toString();
@@ -478,13 +540,6 @@ class ApiService {
     const serverRes = await this.request<{ ebooks: Ebook[] }>(`/ebooks${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.ebooks) && serverRes.ebooks.length > 0) {
       return { ebooks: serverRes.ebooks.filter((e) => !deleted.has(e.id)) };
-    }
-
-    if (isSupabaseConfigured()) {
-      const sbEbooks = await supabaseGetEbooks();
-      if (sbEbooks && sbEbooks.length > 0) {
-        return { ebooks: sbEbooks.filter((e) => !deleted.has(e.id)) };
-      }
     }
 
     let list = this.getLocalEbooks();
@@ -496,6 +551,14 @@ class ApiService {
   }
 
   public async getEbook(slugOrId: string): Promise<{ ebook: Ebook | null; license: any | null }> {
+    if (isSupabaseConfigured()) {
+      const sbEbooks = await supabaseGetEbooks(true);
+      const found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId);
+      if (found) {
+        return { ebook: found, license: null };
+      }
+    }
+
     const serverRes = await this.request<{ ebook: Ebook; license: any | null }>(`/ebooks/${slugOrId}`);
     if (serverRes && serverRes.ebook) return serverRes;
 
@@ -649,6 +712,12 @@ class ApiService {
   }
 
   public async getAdminCourses(): Promise<{ courses: Course[] }> {
+    if (isSupabaseConfigured()) {
+      const sbCourses = await supabaseGetCourses(true);
+      if (sbCourses && sbCourses.length > 0) {
+        return { courses: sbCourses };
+      }
+    }
     const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ courses: Course[] }>('/admin/courses');
     if (serverRes && Array.isArray(serverRes.courses)) {
@@ -668,18 +737,17 @@ class ApiService {
 
     this.unmarkDeletedId(newCourse.id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('courses').upsert(newCourse);
-      } catch (e) {
-        console.warn('Supabase course upsert error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveCourse(newCourse);
+      if (!res.success) {
+        console.warn('Supabase save course error:', res.error);
       }
     }
 
-    await this.request<{ course: Course }>('/admin/courses', {
+    this.request<{ course: Course }>('/admin/courses', {
       method: 'POST',
       body: JSON.stringify(newCourse),
-    });
+    }).catch(() => {});
 
     const list = [newCourse, ...this.getLocalCourses().filter((c) => c.id !== newCourse.id)];
     if (typeof window !== 'undefined') {
@@ -690,39 +758,38 @@ class ApiService {
 
   public async updateCourse(id: string, data: Partial<Course>): Promise<{ course: Course }> {
     this.unmarkDeletedId(id);
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('courses').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase course update error:', e);
+    const existing = this.getLocalCourses().find((c) => c.id === id) || (data as Course);
+    const updatedCourse: Course = { ...existing, ...data, updatedAt: new Date().toISOString() };
+
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveCourse(updatedCourse);
+      if (!res.success) {
+        console.warn('Supabase update course error:', res.error);
       }
     }
 
-    await this.request<{ course: Course }>(`/admin/courses/${id}`, {
+    this.request<{ course: Course }>(`/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    });
+    }).catch(() => {});
 
-    const list = this.getLocalCourses().map((c) => (c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c));
+    const list = this.getLocalCourses().map((c) => (c.id === id ? updatedCourse : c));
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_courses', JSON.stringify(list));
     }
-    const updated = list.find((c) => c.id === id) || (data as Course);
-    return { course: updated };
+    return { course: updatedCourse };
   }
 
   public async deleteCourse(id: string): Promise<{ success: boolean }> {
     this.addDeletedId(id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('courses').delete().eq('id', id);
-      } catch (e) {
-        console.warn('Supabase course delete error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseDeleteCourse(id);
+      if (!res.success) {
+        console.warn('Supabase delete course error:', res.error);
       }
     }
 
-    // Inform server if available
     this.request<{ success: boolean }>(`/admin/courses/${id}`, {
       method: 'DELETE',
     }).catch(() => {});
@@ -735,6 +802,12 @@ class ApiService {
   }
 
   public async getAdminTutorials(): Promise<{ tutorials: Tutorial[] }> {
+    if (isSupabaseConfigured()) {
+      const sbTutorials = await supabaseGetTutorials(true);
+      if (sbTutorials && sbTutorials.length > 0) {
+        return { tutorials: sbTutorials };
+      }
+    }
     const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ tutorials: Tutorial[] }>('/admin/tutorials');
     if (serverRes && Array.isArray(serverRes.tutorials)) {
@@ -754,18 +827,17 @@ class ApiService {
 
     this.unmarkDeletedId(newTutorial.id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('tutorials').upsert(newTutorial);
-      } catch (e) {
-        console.warn('Supabase tutorial upsert error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveTutorial(newTutorial);
+      if (!res.success) {
+        console.warn('Supabase save tutorial error:', res.error);
       }
     }
 
-    await this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
+    this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
       method: 'POST',
       body: JSON.stringify(newTutorial),
-    });
+    }).catch(() => {});
 
     const list = [newTutorial, ...this.getLocalTutorials().filter((t) => t.id !== newTutorial.id)];
     if (typeof window !== 'undefined') {
@@ -776,35 +848,35 @@ class ApiService {
 
   public async updateTutorial(id: string, data: Partial<Tutorial>): Promise<{ tutorial: Tutorial }> {
     this.unmarkDeletedId(id);
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('tutorials').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase tutorial update error:', e);
+    const existing = this.getLocalTutorials().find((t) => t.id === id) || (data as Tutorial);
+    const updatedTutorial: Tutorial = { ...existing, ...data, updatedAt: new Date().toISOString() };
+
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveTutorial(updatedTutorial);
+      if (!res.success) {
+        console.warn('Supabase update tutorial error:', res.error);
       }
     }
 
-    await this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
+    this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    });
+    }).catch(() => {});
 
-    const list = this.getLocalTutorials().map((t) => (t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t));
+    const list = this.getLocalTutorials().map((t) => (t.id === id ? updatedTutorial : t));
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_tutorials', JSON.stringify(list));
     }
-    const updated = list.find((t) => t.id === id) || (data as Tutorial);
-    return { tutorial: updated };
+    return { tutorial: updatedTutorial };
   }
 
   public async deleteTutorial(id: string): Promise<{ success: boolean }> {
     this.addDeletedId(id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('tutorials').delete().eq('id', id);
-      } catch (e) {
-        console.warn('Supabase tutorial delete error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseDeleteTutorial(id);
+      if (!res.success) {
+        console.warn('Supabase delete tutorial error:', res.error);
       }
     }
 
@@ -820,6 +892,12 @@ class ApiService {
   }
 
   public async getAdminEbooks(): Promise<{ ebooks: Ebook[] }> {
+    if (isSupabaseConfigured()) {
+      const sbEbooks = await supabaseGetEbooks(true);
+      if (sbEbooks && sbEbooks.length > 0) {
+        return { ebooks: sbEbooks };
+      }
+    }
     const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ ebooks: Ebook[] }>('/admin/ebooks');
     if (serverRes && Array.isArray(serverRes.ebooks)) {
@@ -838,18 +916,17 @@ class ApiService {
 
     this.unmarkDeletedId(newEbook.id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('ebooks').upsert(newEbook);
-      } catch (e) {
-        console.warn('Supabase ebook upsert error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveEbook(newEbook);
+      if (!res.success) {
+        console.warn('Supabase save ebook error:', res.error);
       }
     }
 
-    await this.request<{ ebook: Ebook }>('/admin/ebooks', {
+    this.request<{ ebook: Ebook }>('/admin/ebooks', {
       method: 'POST',
       body: JSON.stringify(newEbook),
-    });
+    }).catch(() => {});
 
     const list = [newEbook, ...this.getLocalEbooks().filter((e) => e.id !== newEbook.id)];
     if (typeof window !== 'undefined') {
@@ -860,35 +937,35 @@ class ApiService {
 
   public async updateEbook(id: string, data: Partial<Ebook>): Promise<{ ebook: Ebook }> {
     this.unmarkDeletedId(id);
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('ebooks').update({ ...data }).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase ebook update error:', e);
+    const existing = this.getLocalEbooks().find((e) => e.id === id) || (data as Ebook);
+    const updatedEbook: Ebook = { ...existing, ...data };
+
+    if (isSupabaseConfigured()) {
+      const res = await supabaseSaveEbook(updatedEbook);
+      if (!res.success) {
+        console.warn('Supabase update ebook error:', res.error);
       }
     }
 
-    await this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
+    this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    });
+    }).catch(() => {});
 
-    const list = this.getLocalEbooks().map((e) => (e.id === id ? { ...e, ...data } : e));
+    const list = this.getLocalEbooks().map((e) => (e.id === id ? updatedEbook : e));
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
     }
-    const updated = list.find((e) => e.id === id) || (data as Ebook);
-    return { ebook: updated };
+    return { ebook: updatedEbook };
   }
 
   public async deleteEbook(id: string): Promise<{ success: boolean }> {
     this.addDeletedId(id);
 
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        await supabase.from('ebooks').delete().eq('id', id);
-      } catch (e) {
-        console.warn('Supabase ebook delete error:', e);
+    if (isSupabaseConfigured()) {
+      const res = await supabaseDeleteEbook(id);
+      if (!res.success) {
+        console.warn('Supabase delete ebook error:', res.error);
       }
     }
 
@@ -901,6 +978,41 @@ class ApiService {
       localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
     }
     return { success: true };
+  }
+
+  public async syncCatalogToSupabaseCloud(): Promise<{ success: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { success: false, message: 'Supabase credentials are not configured yet.' };
+    }
+    try {
+      const courses = this.getLocalCourses();
+      const ebooks = this.getLocalEbooks();
+      const tutorials = this.getLocalTutorials();
+
+      let savedCourses = 0;
+      let savedEbooks = 0;
+      let savedTutorials = 0;
+
+      for (const c of courses) {
+        const res = await supabaseSaveCourse(c);
+        if (res.success) savedCourses++;
+      }
+      for (const eb of ebooks) {
+        const res = await supabaseSaveEbook(eb);
+        if (res.success) savedEbooks++;
+      }
+      for (const t of tutorials) {
+        const res = await supabaseSaveTutorial(t);
+        if (res.success) savedTutorials++;
+      }
+
+      return {
+        success: true,
+        message: `Cloud Sync Successful! Synced ${savedCourses} courses, ${savedEbooks} ebooks, and ${savedTutorials} tutorials directly to Supabase cloud. All users and devices will now see this catalog.`,
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Sync failed.' };
+    }
   }
 
   public async getAdminUsers(): Promise<{ users: User[] }> {
