@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Download, ShieldCheck, Check, Sparkles, X, FileTex
 import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { downloadEbookFile } from '../utils/downloadHelper.ts';
 
 interface EbookDetailViewProps {
   slugOrId: string;
@@ -35,7 +36,7 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
 
   const handleDownload = () => {
     if (!ebook) return;
-    window.location.href = `/api/ebooks/${ebook.id}/download`;
+    downloadEbookFile(ebook);
   };
 
   if (loading) {

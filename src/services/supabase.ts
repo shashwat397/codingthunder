@@ -36,16 +36,9 @@ export async function supabaseSignUp(name: string, email: string, password: stri
     return { user: null, session: null, error: 'Supabase is not configured yet. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' };
   }
 
-  // Check if this is the first user in profiles, or default to admin
-  let assignedRole: 'student' | 'admin' = 'admin'; // First user or owner defaults to admin
-  try {
-    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-    if (count !== null && count > 0) {
-      assignedRole = 'student';
-    }
-  } catch {
-    assignedRole = 'admin';
-  }
+  // Only the primary site owner gets auto-assigned admin; everyone else is student
+  const isOwner = email.trim().toLowerCase() === 'mishrashashwat90@gmail.com';
+  const assignedRole: 'student' | 'admin' = isOwner ? 'admin' : 'student';
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -111,7 +104,8 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
     return { user: null, session: null, error: 'No user returned from login.' };
   }
 
-  let role: 'student' | 'admin' = (sbUser.user_metadata?.role as 'student' | 'admin') || 'student';
+  const isOwner = (sbUser.email || email).trim().toLowerCase() === 'mishrashashwat90@gmail.com';
+  let role: 'student' | 'admin' = isOwner ? 'admin' : ((sbUser.user_metadata?.role as 'student' | 'admin') || 'student');
   let name = (sbUser.user_metadata?.name as string) || email.split('@')[0];
 
   try {
@@ -124,26 +118,13 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
     if (profile?.role) {
       role = profile.role;
       if (profile.name) name = profile.name;
-    } else {
-      // If no admin profile exists yet in the database, promote this user to admin
-      const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1);
-      if (!admins || admins.length === 0) {
-        role = 'admin';
-        await supabase.from('profiles').upsert({
-          id: sbUser.id,
-          email: sbUser.email || email,
-          name,
-          role: 'admin',
-        });
-      }
     }
   } catch {
     // Non-critical
   }
 
-  // Check if locally claimed admin
-  const locallyClaimed = localStorage.getItem(`codingthunder_admin_${sbUser.id}`);
-  if (locallyClaimed === 'true') {
+  // Check if locally claimed admin for this specific user ID
+  if (localStorage.getItem(`codingthunder_admin_${sbUser.id}`) === 'true') {
     role = 'admin';
   }
 
@@ -188,7 +169,8 @@ export async function supabaseGetSession(): Promise<{ user: User | null; session
   }
 
   const sbUser = data.session.user;
-  let role: 'student' | 'admin' = (sbUser.user_metadata?.role as 'student' | 'admin') || 'student';
+  const isOwner = (sbUser.email || '').trim().toLowerCase() === 'mishrashashwat90@gmail.com';
+  let role: 'student' | 'admin' = isOwner ? 'admin' : ((sbUser.user_metadata?.role as 'student' | 'admin') || 'student');
   let name = (sbUser.user_metadata?.name as string) || sbUser.email?.split('@')[0] || 'Developer';
 
   try {
@@ -201,12 +183,6 @@ export async function supabaseGetSession(): Promise<{ user: User | null; session
     if (profile?.role) {
       role = profile.role;
       if (profile.name) name = profile.name;
-    } else {
-      // Check if any admin exists
-      const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1);
-      if (!admins || admins.length === 0) {
-        role = 'admin';
-      }
     }
   } catch {
     // Non-critical

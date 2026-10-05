@@ -96,9 +96,24 @@ export const AuthModal: React.FC = () => {
         )}
 
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-            <span>{error}</span>
+          <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <span className="font-semibold">{error}</span>
+            </div>
+            {(error.toLowerCase().includes('limit') || error.toLowerCase().includes('rate')) && (
+              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-amber-500/40 text-[11px] text-slate-300 space-y-1">
+                <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>How to remove the email limit in Supabase:</span>
+                </div>
+                <p className="text-slate-400">
+                  1. Open your <strong>Supabase Dashboard</strong> &rarr; <strong>Authentication</strong> &rarr; <strong>Providers</strong> &rarr; <strong>Email</strong>.<br />
+                  2. Toggle <span className="text-amber-300 font-bold">"Confirm email"</span> to <strong>OFF (Disabled)</strong>.<br />
+                  3. Click <strong>Save</strong>. You will be able to register and sign in unlimited accounts instantly!
+                </p>
+              </div>
+            )}
           </div>
         )}
 

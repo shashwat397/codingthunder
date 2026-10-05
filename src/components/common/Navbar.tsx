@@ -128,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
                           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                           <span>Admin Control Center</span>
                         </button>
-                      ) : (
+                      ) : user.email?.toLowerCase() === 'mishrashashwat90@gmail.com' ? (
                         <button
                           onClick={async () => {
                             await claimAdminRole();
@@ -140,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
                           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                           <span>⚡ Claim Administrator Role</span>
                         </button>
-                      )}
+                      ) : null}
 
                       <button
                         onClick={() => handleLinkClick('/dashboard')}

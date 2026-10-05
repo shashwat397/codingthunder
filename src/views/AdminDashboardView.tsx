@@ -19,10 +19,7 @@ import {
   Upload,
   Download,
   Sparkles,
-  AlertCircle,
-  Database,
-  Copy,
-  ExternalLink
+  AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -63,7 +60,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const [grantCourseId, setGrantCourseId] = useState('');
 
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
-  const [schemaCopied, setSchemaCopied] = useState(false);
 
   // Check admin authorization
   if (user && user.role !== 'admin') {
@@ -1240,6 +1236,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                     />
                   </label>
                 )}
+
+                {/* Direct Storage / Google Drive Link Option */}
+                <div className="pt-2 border-t border-slate-800/80">
+                  <label className="block text-slate-400 mb-1 text-[11px] font-mono">
+                    OR Direct Cloud Download Link (Google Drive, Dropbox, AWS S3, Supabase Storage):
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/... or https://your-storage.com/handbook.pdf"
+                    value={editingEbook.downloadFilePath?.startsWith('http') ? editingEbook.downloadFilePath : ''}
+                    onChange={(e) =>
+                      setEditingEbook({
+                        ...editingEbook,
+                        downloadFilePath: e.target.value,
+                        downloadFileName: editingEbook.downloadFileName || `${editingEbook.slug || 'ebook'}.pdf`,
+                        downloadFileSize: editingEbook.downloadFileSize || 'Cloud Hosted',
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
               </div>
 
               {/* 2. COVER ARTWORK UPLOAD & PREVIEW */}

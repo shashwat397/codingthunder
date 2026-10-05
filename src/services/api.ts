@@ -62,50 +62,93 @@ class ApiService {
     }
   }
 
-  // Helper to get local storage courses (with admin additions)
-  private getLocalCourses(): Course[] {
+  // Helper to track permanently deleted entity IDs
+  private getDeletedIds(): Set<string> {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_courses');
+      const stored = localStorage.getItem('codingthunder_deleted_ids');
       if (stored) {
         try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          const arr = JSON.parse(stored);
+          if (Array.isArray(arr)) return new Set(arr);
         } catch {
           // ignore
         }
       }
     }
-    return this.seed.courses;
+    return new Set<string>();
+  }
+
+  private addDeletedId(id: string) {
+    if (typeof window !== 'undefined') {
+      const set = this.getDeletedIds();
+      set.add(id);
+      localStorage.setItem('codingthunder_deleted_ids', JSON.stringify(Array.from(set)));
+    }
+  }
+
+  private unmarkDeletedId(id: string) {
+    if (typeof window !== 'undefined') {
+      const set = this.getDeletedIds();
+      if (set.has(id)) {
+        set.delete(id);
+        localStorage.setItem('codingthunder_deleted_ids', JSON.stringify(Array.from(set)));
+      }
+    }
+  }
+
+  // Helper to get local storage courses (with admin additions and deletions respected)
+  private getLocalCourses(): Course[] {
+    const deleted = this.getDeletedIds();
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_courses');
+      if (stored !== null) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((c: Course) => !deleted.has(c.id));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return this.seed.courses.filter((c) => !deleted.has(c.id));
   }
 
   private getLocalTutorials(): Tutorial[] {
+    const deleted = this.getDeletedIds();
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_tutorials');
-      if (stored) {
+      if (stored !== null) {
         try {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed)) {
+            return parsed.filter((t: Tutorial) => !deleted.has(t.id));
+          }
         } catch {
           // ignore
         }
       }
     }
-    return this.seed.tutorials;
+    return this.seed.tutorials.filter((t) => !deleted.has(t.id));
   }
 
   private getLocalEbooks(): Ebook[] {
+    const deleted = this.getDeletedIds();
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_ebooks');
-      if (stored) {
+      if (stored !== null) {
         try {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed)) {
+            return parsed.filter((e: Ebook) => !deleted.has(e.id));
+          }
         } catch {
           // ignore
         }
       }
     }
-    return this.seed.ebooks;
+    return this.seed.ebooks.filter((e) => !deleted.has(e.id));
   }
 
   // --- Auth ---
@@ -146,10 +189,8 @@ class ApiService {
       return res;
     }
 
-    // Client-side fallback: First user to register becomes admin
-    const isFirstUser = !localStorage.getItem('codingthunder_has_registered_user');
-    localStorage.setItem('codingthunder_has_registered_user', 'true');
-    const role: 'student' | 'admin' = isFirstUser ? 'admin' : 'student';
+    const isOwner = email.trim().toLowerCase() === 'mishrashashwat90@gmail.com';
+    const role: 'student' | 'admin' = isOwner ? 'admin' : 'student';
 
     const fallbackUser: User = {
       id: `usr_${Date.now()}`,
@@ -168,12 +209,12 @@ class ApiService {
     const res = await this.request<{ user: User }>('/auth/me');
     if (res && res.user) return res;
 
-    // Fallback current user
+    // Fallback current user defaults to student unless claimed
     const fallbackUser: User = {
       id: 'usr_me',
       name: 'Developer',
-      email: 'user@codingthunder.dev',
-      role: 'admin',
+      email: 'student@codingthunder.dev',
+      role: 'student',
       avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=dev',
       createdAt: new Date().toISOString(),
     };
@@ -248,16 +289,17 @@ class ApiService {
     if (params?.sort) query.append('sort', params.sort);
     const qs = query.toString();
 
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ courses: Course[] }>(`/courses${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.courses) && serverRes.courses.length > 0) {
-      return serverRes;
+      return { courses: serverRes.courses.filter((c) => !deleted.has(c.id)) };
     }
 
     // 2. Try Supabase
     if (isSupabaseConfigured()) {
       const sbCourses = await supabaseGetCourses();
       if (sbCourses && sbCourses.length > 0) {
-        return { courses: sbCourses };
+        return { courses: sbCourses.filter((c) => !deleted.has(c.id)) };
       }
     }
 
@@ -393,15 +435,16 @@ class ApiService {
     if (params?.search) query.append('search', params.search);
     const qs = query.toString();
 
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ tutorials: Tutorial[] }>(`/tutorials${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.tutorials) && serverRes.tutorials.length > 0) {
-      return serverRes;
+      return { tutorials: serverRes.tutorials.filter((t) => !deleted.has(t.id)) };
     }
 
     if (isSupabaseConfigured()) {
       const sbTutorials = await supabaseGetTutorials();
       if (sbTutorials && sbTutorials.length > 0) {
-        return { tutorials: sbTutorials };
+        return { tutorials: sbTutorials.filter((t) => !deleted.has(t.id)) };
       }
     }
 
@@ -431,15 +474,16 @@ class ApiService {
     if (params?.search) query.append('search', params.search);
     const qs = query.toString();
 
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ ebooks: Ebook[] }>(`/ebooks${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.ebooks) && serverRes.ebooks.length > 0) {
-      return serverRes;
+      return { ebooks: serverRes.ebooks.filter((e) => !deleted.has(e.id)) };
     }
 
     if (isSupabaseConfigured()) {
       const sbEbooks = await supabaseGetEbooks();
       if (sbEbooks && sbEbooks.length > 0) {
-        return { ebooks: sbEbooks };
+        return { ebooks: sbEbooks.filter((e) => !deleted.has(e.id)) };
       }
     }
 
@@ -605,26 +649,39 @@ class ApiService {
   }
 
   public async getAdminCourses(): Promise<{ courses: Course[] }> {
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ courses: Course[] }>('/admin/courses');
-    if (serverRes && Array.isArray(serverRes.courses)) return serverRes;
+    if (serverRes && Array.isArray(serverRes.courses)) {
+      return { courses: serverRes.courses.filter((c) => !deleted.has(c.id)) };
+    }
     return { courses: this.getLocalCourses() };
   }
 
   public async createCourse(data: Partial<Course>): Promise<{ course: Course }> {
-    const serverRes = await this.request<{ course: Course }>('/admin/courses', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (serverRes && serverRes.course) return serverRes;
-
     const newCourse: Course = {
       ...(data as Course),
-      id: `crs_${Date.now()}`,
+      id: data.id || `crs_${Date.now()}`,
       slug: data.slug || `course-${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const list = [newCourse, ...this.getLocalCourses()];
+
+    this.unmarkDeletedId(newCourse.id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('courses').upsert(newCourse);
+      } catch (e) {
+        console.warn('Supabase course upsert error:', e);
+      }
+    }
+
+    await this.request<{ course: Course }>('/admin/courses', {
+      method: 'POST',
+      body: JSON.stringify(newCourse),
+    });
+
+    const list = [newCourse, ...this.getLocalCourses().filter((c) => c.id !== newCourse.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_courses', JSON.stringify(list));
     }
@@ -632,11 +689,19 @@ class ApiService {
   }
 
   public async updateCourse(id: string, data: Partial<Course>): Promise<{ course: Course }> {
-    const serverRes = await this.request<{ course: Course }>(`/admin/courses/${id}`, {
+    this.unmarkDeletedId(id);
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('courses').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase course update error:', e);
+      }
+    }
+
+    await this.request<{ course: Course }>(`/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
-    if (serverRes && serverRes.course) return serverRes;
 
     const list = this.getLocalCourses().map((c) => (c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c));
     if (typeof window !== 'undefined') {
@@ -647,10 +712,20 @@ class ApiService {
   }
 
   public async deleteCourse(id: string): Promise<{ success: boolean }> {
-    const serverRes = await this.request<{ success: boolean }>(`/admin/courses/${id}`, {
+    this.addDeletedId(id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('courses').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase course delete error:', e);
+      }
+    }
+
+    // Inform server if available
+    this.request<{ success: boolean }>(`/admin/courses/${id}`, {
       method: 'DELETE',
-    });
-    if (serverRes) return serverRes;
+    }).catch(() => {});
 
     const list = this.getLocalCourses().filter((c) => c.id !== id);
     if (typeof window !== 'undefined') {
@@ -660,26 +735,39 @@ class ApiService {
   }
 
   public async getAdminTutorials(): Promise<{ tutorials: Tutorial[] }> {
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ tutorials: Tutorial[] }>('/admin/tutorials');
-    if (serverRes && Array.isArray(serverRes.tutorials)) return serverRes;
+    if (serverRes && Array.isArray(serverRes.tutorials)) {
+      return { tutorials: serverRes.tutorials.filter((t) => !deleted.has(t.id)) };
+    }
     return { tutorials: this.getLocalTutorials() };
   }
 
   public async createTutorial(data: Partial<Tutorial>): Promise<{ tutorial: Tutorial }> {
-    const serverRes = await this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (serverRes && serverRes.tutorial) return serverRes;
-
     const newTutorial: Tutorial = {
       ...(data as Tutorial),
-      id: `tut_${Date.now()}`,
+      id: data.id || `tut_${Date.now()}`,
       slug: data.slug || `tutorial-${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const list = [newTutorial, ...this.getLocalTutorials()];
+
+    this.unmarkDeletedId(newTutorial.id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('tutorials').upsert(newTutorial);
+      } catch (e) {
+        console.warn('Supabase tutorial upsert error:', e);
+      }
+    }
+
+    await this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
+      method: 'POST',
+      body: JSON.stringify(newTutorial),
+    });
+
+    const list = [newTutorial, ...this.getLocalTutorials().filter((t) => t.id !== newTutorial.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_tutorials', JSON.stringify(list));
     }
@@ -687,11 +775,19 @@ class ApiService {
   }
 
   public async updateTutorial(id: string, data: Partial<Tutorial>): Promise<{ tutorial: Tutorial }> {
-    const serverRes = await this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
+    this.unmarkDeletedId(id);
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('tutorials').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase tutorial update error:', e);
+      }
+    }
+
+    await this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
-    if (serverRes && serverRes.tutorial) return serverRes;
 
     const list = this.getLocalTutorials().map((t) => (t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t));
     if (typeof window !== 'undefined') {
@@ -702,10 +798,19 @@ class ApiService {
   }
 
   public async deleteTutorial(id: string): Promise<{ success: boolean }> {
-    const serverRes = await this.request<{ success: boolean }>(`/admin/tutorials/${id}`, {
+    this.addDeletedId(id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('tutorials').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase tutorial delete error:', e);
+      }
+    }
+
+    this.request<{ success: boolean }>(`/admin/tutorials/${id}`, {
       method: 'DELETE',
-    });
-    if (serverRes) return serverRes;
+    }).catch(() => {});
 
     const list = this.getLocalTutorials().filter((t) => t.id !== id);
     if (typeof window !== 'undefined') {
@@ -715,25 +820,38 @@ class ApiService {
   }
 
   public async getAdminEbooks(): Promise<{ ebooks: Ebook[] }> {
+    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ ebooks: Ebook[] }>('/admin/ebooks');
-    if (serverRes && Array.isArray(serverRes.ebooks)) return serverRes;
+    if (serverRes && Array.isArray(serverRes.ebooks)) {
+      return { ebooks: serverRes.ebooks.filter((e) => !deleted.has(e.id)) };
+    }
     return { ebooks: this.getLocalEbooks() };
   }
 
   public async createEbook(data: Partial<Ebook>): Promise<{ ebook: Ebook }> {
-    const serverRes = await this.request<{ ebook: Ebook }>('/admin/ebooks', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (serverRes && serverRes.ebook) return serverRes;
-
     const newEbook: Ebook = {
       ...(data as Ebook),
-      id: `ebk_${Date.now()}`,
+      id: data.id || `ebk_${Date.now()}`,
       slug: data.slug || `ebook-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
-    const list = [newEbook, ...this.getLocalEbooks()];
+
+    this.unmarkDeletedId(newEbook.id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('ebooks').upsert(newEbook);
+      } catch (e) {
+        console.warn('Supabase ebook upsert error:', e);
+      }
+    }
+
+    await this.request<{ ebook: Ebook }>('/admin/ebooks', {
+      method: 'POST',
+      body: JSON.stringify(newEbook),
+    });
+
+    const list = [newEbook, ...this.getLocalEbooks().filter((e) => e.id !== newEbook.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
     }
@@ -741,11 +859,19 @@ class ApiService {
   }
 
   public async updateEbook(id: string, data: Partial<Ebook>): Promise<{ ebook: Ebook }> {
-    const serverRes = await this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
+    this.unmarkDeletedId(id);
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('ebooks').update({ ...data }).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase ebook update error:', e);
+      }
+    }
+
+    await this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
-    if (serverRes && serverRes.ebook) return serverRes;
 
     const list = this.getLocalEbooks().map((e) => (e.id === id ? { ...e, ...data } : e));
     if (typeof window !== 'undefined') {
@@ -756,10 +882,19 @@ class ApiService {
   }
 
   public async deleteEbook(id: string): Promise<{ success: boolean }> {
-    const serverRes = await this.request<{ success: boolean }>(`/admin/ebooks/${id}`, {
+    this.addDeletedId(id);
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('ebooks').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase ebook delete error:', e);
+      }
+    }
+
+    this.request<{ success: boolean }>(`/admin/ebooks/${id}`, {
       method: 'DELETE',
-    });
-    if (serverRes) return serverRes;
+    }).catch(() => {});
 
     const list = this.getLocalEbooks().filter((e) => e.id !== id);
     if (typeof window !== 'undefined') {
