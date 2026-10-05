@@ -18,9 +18,10 @@ export const EbooksView: React.FC<EbooksViewProps> = ({ onNavigate }) => {
     setLoading(true);
     try {
       const res = await api.getEbooks({ search: search || undefined });
-      setEbooks(res.ebooks);
+      setEbooks(Array.isArray(res?.ebooks) ? res.ebooks : []);
     } catch (err) {
       console.error('Failed to load ebooks:', err);
+      setEbooks([]);
     } finally {
       setLoading(false);
     }

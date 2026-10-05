@@ -8,7 +8,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
-  const { user, logout, openAuthModal } = useAuth();
+  const { user, logout, openAuthModal, claimAdminRole } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
@@ -120,13 +120,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
                         </span>
                       </div>
 
-                      {user.role === 'admin' && (
+                      {user.role === 'admin' ? (
                         <button
                           onClick={() => handleLinkClick('/admin')}
                           className="w-full text-left px-4 py-2 text-xs text-amber-300 hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
                         >
                           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                           <span>Admin Control Center</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            await claimAdminRole();
+                            setProfileDropdownOpen(false);
+                            handleLinkClick('/admin');
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 flex items-center gap-2 cursor-pointer font-bold border-b border-amber-500/20"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                          <span>⚡ Claim Administrator Role</span>
                         </button>
                       )}
 

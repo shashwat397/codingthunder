@@ -26,19 +26,21 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({ courseSlugOr
     async function loadCourse() {
       try {
         const res = await api.getCourse(courseSlugOrId);
-        setCourse(res.course);
-        setEnrollment(res.enrollment);
+        if (res && res.course) {
+          setCourse(res.course);
+          setEnrollment(res.enrollment);
 
-        // Expand first section by default
-        if (res.course.sections.length > 0) {
-          setExpandedSections({ [res.course.sections[0].id]: true });
-          const firstLesson = res.course.sections[0].lessons[0];
-          setCurrentLesson(firstLesson || null);
-        }
+          // Expand first section by default
+          if (Array.isArray(res.course.sections) && res.course.sections.length > 0) {
+            setExpandedSections({ [res.course.sections[0].id]: true });
+            const firstLesson = res.course.sections[0].lessons?.[0];
+            setCurrentLesson(firstLesson || null);
+          }
 
-        // If enrolled, auto-open player mode
-        if (res.enrollment) {
-          setPlayerMode(true);
+          // If enrolled, auto-open player mode
+          if (res.enrollment) {
+            setPlayerMode(true);
+          }
         }
       } catch (err) {
         console.error('Failed to load course details:', err);

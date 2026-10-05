@@ -18,7 +18,9 @@ export const TutorialDetailView: React.FC<TutorialDetailViewProps> = ({ slugOrId
     async function loadTutorial() {
       try {
         const res = await api.getTutorial(slugOrId);
-        setTutorial(res.tutorial);
+        if (res) {
+          setTutorial(res.tutorial || null);
+        }
       } catch (err) {
         console.error('Failed to load tutorial:', err);
       } finally {

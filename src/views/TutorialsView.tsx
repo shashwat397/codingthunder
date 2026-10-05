@@ -22,9 +22,10 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onNavigate }) => {
         category: selectedCategory !== 'All' ? selectedCategory : undefined,
         search: search || undefined,
       });
-      setTutorials(res.tutorials);
+      setTutorials(Array.isArray(res?.tutorials) ? res.tutorials : []);
     } catch (err) {
       console.error('Failed to load tutorials:', err);
+      setTutorials([]);
     } finally {
       setLoading(false);
     }

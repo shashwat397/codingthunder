@@ -19,7 +19,10 @@ import {
   Upload,
   Download,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Database,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -60,6 +63,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const [grantCourseId, setGrantCourseId] = useState('');
 
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
+  const [schemaCopied, setSchemaCopied] = useState(false);
 
   // Check admin authorization
   if (user && user.role !== 'admin') {

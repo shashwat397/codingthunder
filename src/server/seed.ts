@@ -1,5 +1,4 @@
 import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLicense } from '../types/index.ts';
-import { hashPassword } from './auth.ts';
 
 export function getSeedData() {
   const users: (User & { passwordHash: string })[] = [];

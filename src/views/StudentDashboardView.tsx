@@ -10,7 +10,7 @@ interface StudentDashboardViewProps {
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ initialTab = 'courses', onNavigate }) => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, claimAdminRole } = useAuth();
   const [activeTab, setActiveTab] = useState<'courses' | 'ebooks' | 'orders' | 'settings'>(
     (initialTab as any) || 'courses'
   );
@@ -381,6 +381,41 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
       {activeTab === 'settings' && (
         <div className="max-w-2xl space-y-6">
           <h3 className="text-lg font-bold text-white">Account & Security</h3>
+
+          {/* Administrator Role Banner */}
+          <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-amber-300">Administrator Privileges</h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {user?.role === 'admin'
+                    ? 'Your account currently has full Administrator control over courses, tutorials, ebooks, and users.'
+                    : 'Claim administrator permissions to unlock the Course Builder, Ebook Uploads, and Admin Dashboard.'}
+                </p>
+              </div>
+              {user?.role === 'admin' ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/admin')}
+                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs whitespace-nowrap cursor-pointer hover:bg-amber-400 shadow-md"
+                >
+                  Open Admin Dashboard
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await claimAdminRole();
+                    setSettingsSuccess('Successfully upgraded your account to Administrator!');
+                    setTimeout(() => onNavigate('/admin'), 1200);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap cursor-pointer shadow-lg shadow-amber-500/20"
+                >
+                  ⚡ Upgrade to Administrator
+                </button>
+              )}
+            </div>
+          </div>
 
           {settingsSuccess && (
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">

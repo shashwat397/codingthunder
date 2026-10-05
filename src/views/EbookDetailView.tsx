@@ -20,8 +20,10 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
     async function loadEbook() {
       try {
         const res = await api.getEbook(slugOrId);
-        setEbook(res.ebook);
-        setLicense(res.license);
+        if (res) {
+          setEbook(res.ebook || null);
+          setLicense(res.license || null);
+        }
       } catch (err) {
         console.error('Failed to load ebook:', err);
       } finally {

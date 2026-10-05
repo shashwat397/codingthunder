@@ -61,11 +61,39 @@ export const AuthModal: React.FC = () => {
           {authModalMode === 'register' && 'Create your developer account'}
           {authModalMode === 'forgot' && 'Reset your password'}
         </h2>
-        <p className="text-xs text-slate-400 mt-1 mb-6">
+        <p className="text-xs text-slate-400 mt-1 mb-4">
           {authModalMode === 'login' && 'Sign in to access your courses, progress, and ebooks.'}
           {authModalMode === 'register' && 'Join 450,000+ developers shipping production software.'}
           {authModalMode === 'forgot' && 'Enter your email to receive recovery instructions.'}
         </p>
+
+        {/* Mode Switch Tabs */}
+        {authModalMode !== 'forgot' && (
+          <div className="grid grid-cols-2 p-1 bg-slate-900/90 rounded-xl border border-slate-800 mb-5">
+            <button
+              type="button"
+              onClick={() => openAuthModal('login')}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                authModalMode === 'login'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => openAuthModal('register')}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                authModalMode === 'register'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Create One / Sign Up
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
@@ -172,7 +200,7 @@ export const AuthModal: React.FC = () => {
                 onClick={() => openAuthModal('register')}
                 className="text-amber-400 font-semibold hover:underline cursor-pointer"
               >
-                Sign up free
+                Create one (Sign up free)
               </button>
             </p>
           )}

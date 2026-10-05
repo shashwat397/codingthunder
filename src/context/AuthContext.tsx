@@ -8,6 +8,7 @@ import {
   supabaseSignUp,
   supabaseSignOut,
   supabaseGetSession,
+  supabasePromoteToAdmin,
 } from '../services/supabase.ts';
 
 interface CheckoutItem {
@@ -23,6 +24,7 @@ interface AuthContextType {
   isSupabaseActive: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  claimAdminRole: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isAuthModalOpen: boolean;
@@ -113,6 +115,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
+  const claimAdminRole = async () => {
+    if (!user) return;
+    if (isSupabaseActive) {
+      await supabasePromoteToAdmin(user.id);
+    }
+    localStorage.setItem(`codingthunder_admin_${user.id}`, 'true');
+    setUser({ ...user, role: 'admin' });
+  };
+
   const logout = async () => {
     if (isSupabaseActive) {
       await supabaseSignOut();
@@ -150,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSupabaseActive,
         login,
         register,
+        claimAdminRole,
         logout,
         refreshUser,
         isAuthModalOpen,

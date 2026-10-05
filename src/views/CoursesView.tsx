@@ -29,9 +29,10 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavigate }) => {
         freeOnly,
         sort,
       });
-      setCourses(res.courses);
+      setCourses(Array.isArray(res?.courses) ? res.courses : []);
     } catch (err) {
       console.error('Failed to load courses:', err);
+      setCourses([]);
     } finally {
       setLoading(false);
     }
