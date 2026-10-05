@@ -56,9 +56,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
 
   const handleDownloadEbook = (ebook: Ebook, token?: string) => {
     if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
-      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`);
-    } else if (ebook.downloadContent) {
-      downloadBlob(ebook.downloadContent, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook.downloadFileType || 'application/pdf');
+      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook, token || `LIC-${ebook.id}`);
     } else {
       generateEbookHandbookFile(ebook, token || `LIC-${ebook.id}`);
     }

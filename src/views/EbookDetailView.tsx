@@ -49,9 +49,7 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
     }
 
     if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
-      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`);
-    } else if (ebook.downloadContent) {
-      downloadBlob(ebook.downloadContent, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook.downloadFileType || 'application/pdf');
+      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
     } else {
       generateEbookHandbookFile(ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
     }

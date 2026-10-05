@@ -89,13 +89,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
       const res = await api.getEbook(checkoutItem.itemId);
       const eb = res.ebook;
       if (eb) {
-        if (eb.downloadFilePath && (eb.downloadFilePath.startsWith('http://') || eb.downloadFilePath.startsWith('https://'))) {
-          await downloadFromUrl(eb.downloadFilePath, eb.downloadFileName || `${eb.slug}.pdf`);
-        } else if (eb.downloadContent) {
-          downloadBlob(eb.downloadContent, eb.downloadFileName || `${eb.slug}.pdf`, eb.downloadFileType || 'application/pdf');
-        } else {
-          generateEbookHandbookFile(eb, completedOrder?.orderNumber || `THUNDER-${eb.id}`);
-        }
+        generateEbookHandbookFile(eb, completedOrder?.orderNumber || `THUNDER-${eb.id}`);
       }
     } catch {
       alert('Ebook package download initiated.');
@@ -135,10 +129,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
               <div className="flex justify-between text-slate-400">
                 <span>Gateway:</span>
                 <span className="text-emerald-400 font-bold">Razorpay Verified</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Amount Paid:</span>
-                <span className="text-emerald-400 font-bold">₹{completedOrder.amount}</span>
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Access Status:</span>
