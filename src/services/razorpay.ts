@@ -120,9 +120,45 @@ export async function openRazorpayCheckout(
         description: options.description || 'Course/Ebook Purchase',
         image: options.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=128&q=80',
         prefill: {
-          name: options.prefill?.name || '',
-          email: options.prefill?.email || '',
-          contact: options.prefill?.contact || '',
+          name: options.prefill?.name || 'Student',
+          email: options.prefill?.email || 'student@codingthunder.dev',
+          contact: options.prefill?.contact || '9876543210',
+        },
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+        },
+        display: {
+          blocks: {
+            upi: {
+              name: 'Pay with UPI (GPay, PhonePe, Paytm, QR)',
+              instruments: [
+                {
+                  method: 'upi',
+                },
+              ],
+            },
+            other: {
+              name: 'Cards & NetBanking',
+              instruments: [
+                {
+                  method: 'card',
+                },
+                {
+                  method: 'netbanking',
+                },
+                {
+                  method: 'wallet',
+                },
+              ],
+            },
+          },
+          sequence: ['block.upi', 'block.other'],
+          preferences: {
+            show_default_blocks: true,
+          },
         },
         notes: {
           ...(options.notes || {}),

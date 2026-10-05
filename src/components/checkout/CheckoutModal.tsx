@@ -12,6 +12,9 @@ interface CheckoutModalProps {
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
   const { checkoutItem, closeCheckout, user } = useAuth();
+  const [customerName, setCustomerName] = useState(user?.name || 'Student');
+  const [customerEmail, setCustomerEmail] = useState(user?.email || 'student@codingthunder.dev');
+  const [customerPhone, setCustomerPhone] = useState('9876543210');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
@@ -39,8 +42,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
         name: 'Codingthunder',
         description: checkoutItem.itemTitle,
         prefill: {
-          name: user?.name || '',
-          email: user?.email || '',
+          name: customerName || user?.name || 'Student',
+          email: customerEmail || user?.email || 'student@codingthunder.dev',
+          contact: customerPhone || '9876543210',
         },
         notes: {
           itemType: checkoutItem.itemType,
@@ -209,8 +213,40 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
               </div>
             )}
 
+            {/* Contact Details for UPI & Receipt */}
+            <div className="space-y-2 mb-5">
+              <label className="block text-xs font-semibold text-slate-300">
+                Contact Details (For UPI Auto-Detection & Instant Receipt)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="block text-[11px] text-slate-400 mb-1">Mobile (Linked to PhonePe / GPay)</span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <span className="block text-[11px] text-slate-400 mb-1">Email (For Receipt & Access)</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@email.com"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Razorpay Gateway Badge & Info */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 mb-6">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 mb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-lg bg-amber-500/20 text-amber-400">
@@ -220,17 +256,44 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
                     <div className="text-sm font-bold text-white flex items-center gap-2">
                       Razorpay Gateway
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-medium">
-                        Instant & Secure
+                        Domestic & UPI
                       </span>
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5">
-                      UPI (GPay, PhonePe, Paytm), NetBanking & All Indian Cards
+                      UPI, NetBanking, RuPay & Indian Debit/Credit Cards
                     </div>
                   </div>
                 </div>
                 <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
               </div>
             </div>
+
+            {/* Mode-Specific Guidance Note */}
+            {getRazorpayKeyId().startsWith('rzp_test_') ? (
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] space-y-1 mb-5 text-slate-300">
+                <div className="font-semibold text-amber-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" /> Razorpay Test Mode Active:
+                </div>
+                <div className="text-slate-300 font-mono text-[11px]">
+                  Domestic RuPay: <strong className="text-white select-all">6527 6589 0000 1005</strong>
+                </div>
+                <div className="text-slate-400 text-[10px]">
+                  Expiry: <span className="text-slate-200">12/28</span> · CVV: <span className="text-slate-200">123</span> · OTP: any 4 digits (e.g. 1234)
+                </div>
+                <div className="text-slate-500 text-[10px]">
+                  Tip: Indian accounts block international Visa (`4111...`). Use RuPay above or NetBanking (HDFC Bank).
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] space-y-1 mb-5 text-emerald-300">
+                <div className="font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Live Instant Payment
+                </div>
+                <div className="text-slate-300 text-[11px]">
+                  Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or pay via any Indian Bank Debit/Credit Card or NetBanking.
+                </div>
+              </div>
+            )}
 
             {/* Pay Button */}
             <button
