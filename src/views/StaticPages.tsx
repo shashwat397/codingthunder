@@ -1,5 +1,23 @@
 import React, { useState } from 'react';
-import { Mail, Check, AlertCircle, Zap, ShieldCheck, Compass, HelpCircle, FileText, ArrowRight } from 'lucide-react';
+import {
+  Mail,
+  Check,
+  AlertCircle,
+  Zap,
+  ShieldCheck,
+  Compass,
+  HelpCircle,
+  FileText,
+  ArrowRight,
+  BarChart3,
+  Database,
+  BrainCircuit,
+  TrendingUp,
+  Layers,
+  Cpu,
+  Sparkles,
+  Binary
+} from 'lucide-react';
 import { api } from '../services/api.ts';
 
 interface StaticPagesProps {
@@ -38,31 +56,172 @@ export const StaticPages: React.FC<StaticPagesProps> = ({ page, onNavigate }) =>
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24 text-slate-200">
       {/* ========================================================= */}
-      {/* 1. ABOUT PAGE */}
+      {/* 1. ABOUT PAGE: DATA SCIENCE & DATA ANALYTICS HUB */}
       {/* ========================================================= */}
       {page === 'about' && (
-        <div className="space-y-8">
-          <div className="space-y-2">
-            <span className="text-xs font-mono uppercase text-amber-400 font-semibold">Our Mission</span>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white">About Codingthunder</h1>
-            <p className="text-base text-slate-300">
-              Transforming curious developers into production-ready software engineers.
+        <div className="space-y-12">
+          {/* Header Badge & Title */}
+          <div className="space-y-4 text-center sm:text-left">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs font-mono">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current" />
+              <span>Data Science & Analytics Engineering Hub</span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+              Transforming Raw Data Into{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500">
+                Predictive Power.
+              </span>
+            </h1>
+            <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-3xl">
+              We engineer the next generation of Data Scientists, Quantitative Analysts, and Analytics Engineers through battle-tested workflows, statistical depth, and zero fluff.
             </p>
           </div>
 
-          <div className="prose prose-invert max-w-none text-sm sm:text-base leading-relaxed space-y-4 text-slate-300">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-[#0c101c] border border-slate-800">
+            <div className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">3.5Q+</div>
+              <div className="text-xs text-slate-400">Daily Global Bytes Analyzed</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">100%</div>
+              <div className="text-xs text-slate-400">Real Production Datasets</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono">40+</div>
+              <div className="text-xs text-slate-400">End-to-End Case Studies</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-black text-purple-400 font-mono">450K+</div>
+              <div className="text-xs text-slate-400">Active Data Practitioners</div>
+            </div>
+          </div>
+
+          {/* Narrative & Philosophy */}
+          <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-slate-900/80 to-[#0c101c] border border-slate-800 space-y-6 text-slate-300 text-sm sm:text-base leading-relaxed">
+            <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
+              <BrainCircuit className="w-6 h-6 text-amber-400" />
+              <span>Why We Built Codingthunder for Data</span>
+            </h2>
+            
             <p>
-              Codingthunder was founded with a singular conviction: learning to code shouldn’t require drowning in confusing jargon or surface-level "to-do list" tutorials that break the second you deploy them to production.
+              In modern computing, code without data is blind, and data without code is dormant. Every millisecond, billions of telemetry logs, financial transactions, user touchpoints, and medical sensor readings flood enterprise servers. The organizations that dominate their industries aren’t the ones with the most raw numbers — they are the ones with the <strong className="text-white">analytical precision</strong> to extract high-conviction decision intelligence.
             </p>
             <p>
-              Inspired by the clarity, accessibility, and high-impact educational style of accessible programming channels like CodeWithHarry, Codingthunder combines bilingual clarity, zero-slop curriculum design, and authentic production software architecture.
+              Traditional courses trap aspiring practitioners in sterile academic theory: memorizing formulas on paper or training basic linear regressions on toy datasets from the 1930s. That approach collapses on day one in the real world, where data is dirty, distributed across petabyte warehouses, incomplete, and continuously streaming.
             </p>
-            <h3 className="text-xl font-bold text-white pt-4">The Three Thunder Principles</h3>
-            <ul className="space-y-2 list-disc pl-5">
-              <li><strong>Zero Fluff, 100% Signal:</strong> We respect your time. Every 10-minute lesson teaches a concrete technique you will actually use at work.</li>
-              <li><strong>All Source Code Open:</strong> Every repository, Dockerfile, SQL migration, and Tailwind layout is downloadable and free to inspect.</li>
-              <li><strong>Real Production Infrastructure:</strong> No mock databases or in-memory arrays when teaching backends. We build with PostgreSQL, Express, Docker, and cloud primitives.</li>
-            </ul>
+            <p>
+              At Codingthunder, we bridge that chasm. We treat Data Science and Data Analytics as an <strong className="text-amber-300">applied engineering craft</strong>: combining deep statistical inference with high-performance Python, industrial SQL, modern analytics engineering (dbt, DuckDB, Snowflake), and low-latency machine learning pipelines.
+            </p>
+          </div>
+
+          {/* Core Pillars Grid */}
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Layers className="w-5 h-5 text-amber-400" />
+              <span>The Four Pillars of Data Mastery</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-amber-500/40 transition-colors space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                  <Database className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-bold text-white">1. Industrial SQL & Analytics Engineering</h4>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  Go far beyond basic <code className="text-amber-300 bg-slate-900 px-1.5 py-0.5 rounded">SELECT</code> queries. Master recursive CTEs, window functions, query execution optimization, dimensional modeling (star & snowflake schemas), and dbt transformation pipelines.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-emerald-500/40 transition-colors space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-bold text-white">2. High-Performance EDA & Statistical Inference</h4>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  Clean real-world unstructured datasets at scale using Python, Pandas, and ultra-fast Polars. Apply hypothesis testing, A/B experiment design, Bayesian probability, and anomaly detection to make rock-solid assertions.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-cyan-500/40 transition-colors space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-bold text-white">3. Applied Machine Learning & Predictive Modeling</h4>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  Build and tune production-ready algorithms with Scikit-Learn, LightGBM, and PyTorch. Master automated feature engineering, cross-validation architectures, hyperparameter optimization, and low-latency inference APIs.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-purple-500/40 transition-colors space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-bold text-white">4. Executive BI & Metric Storytelling</h4>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  Transform raw numbers into decisive executive dashboards. Design north-star metric hierarchies, retention cohort matrices, and interactive visual narratives using PowerBI, Tableau, and Streamlit.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Modern Tech Stack Badges */}
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+            <div className="text-xs font-mono uppercase text-slate-400 font-semibold flex items-center gap-2">
+              <Binary className="w-4 h-4 text-amber-400" />
+              <span>Technologies & Tools Taught in Our Curricula</span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-mono">
+              {[
+                'Python 3.12',
+                'Advanced PostgreSQL',
+                'DuckDB',
+                'Pandas & Polars',
+                'NumPy & SciPy',
+                'Scikit-Learn',
+                'XGBoost & LightGBM',
+                'PyTorch',
+                'dbt (data build tool)',
+                'Apache Spark',
+                'Snowflake & BigQuery',
+                'PowerBI & Tableau',
+                'Streamlit',
+                'FastAPI ML Serving',
+                'Docker & Airflow'
+              ].map((tech) => (
+                <span
+                  key={tech}
+                  className="px-3 py-1.5 rounded-lg bg-[#0c101c] border border-slate-800 text-slate-300 hover:border-amber-500/40 hover:text-amber-300 transition-colors"
+                >
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Callout */}
+          <div className="p-8 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-[#0c101c] border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="space-y-1 text-center sm:text-left">
+              <h3 className="text-lg font-bold text-white">Ready to master Data Science & Analytics?</h3>
+              <p className="text-xs sm:text-sm text-slate-300">
+                Explore our full catalog of deep-dive courses, datasets, architectural playbooks, and interactive cheat sheets.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => onNavigate('/courses')}
+                className="py-3 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center gap-2"
+              >
+                <span>Browse Courses</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onNavigate('/ebooks')}
+                className="py-3 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+              >
+                <span>Ebooks & Playbooks</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

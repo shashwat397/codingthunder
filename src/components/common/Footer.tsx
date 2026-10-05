@@ -148,8 +148,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Production Verified
             </span>
           </div>
-          <div className="text-slate-500 font-mono text-[11px]">
-            Demo Admin: <span className="text-slate-300">admin@codingthunder.demo</span>
+          <div className="text-slate-400 font-mono text-[11px] flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Data Science & Analytics Engineering Hub</span>
           </div>
         </div>
       </div>
