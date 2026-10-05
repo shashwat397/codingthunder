@@ -3,7 +3,7 @@ import { Video, BookOpen, Clock, CheckCircle2, Download, Settings, ShoppingBag, 
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { Course, Ebook, Order, Enrollment } from '../types/index.ts';
-import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../utils/downloadHelper.ts';
+import { downloadExactOriginalEbook } from '../utils/downloadHelper.ts';
 
 interface StudentDashboardViewProps {
   initialTab?: string;
@@ -55,11 +55,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
   }, [user]);
 
   const handleDownloadEbook = (ebook: Ebook, token?: string) => {
-    if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
-      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook, token || `LIC-${ebook.id}`);
-    } else {
-      generateEbookHandbookFile(ebook, token || `LIC-${ebook.id}`);
-    }
+    downloadExactOriginalEbook(ebook, token || `LIC-${ebook.id}`);
   };
 
   const handleUpdateName = async (e: React.FormEvent) => {

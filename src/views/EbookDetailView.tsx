@@ -3,7 +3,7 @@ import { ArrowLeft, BookOpen, Download, ShieldCheck, Check, Sparkles, X, FileTex
 import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
-import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../utils/downloadHelper.ts';
+import { downloadExactOriginalEbook } from '../utils/downloadHelper.ts';
 
 interface EbookDetailViewProps {
   slugOrId: string;
@@ -48,11 +48,7 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
       return;
     }
 
-    if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
-      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
-    } else {
-      generateEbookHandbookFile(ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
-    }
+    downloadExactOriginalEbook(ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
   };
 
   if (loading) {

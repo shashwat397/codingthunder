@@ -28,6 +28,7 @@ import {
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { Course, Tutorial, Ebook, User, Order, SiteSettings } from '../types/index.ts';
+import { saveOriginalEbookFile } from '../utils/fileStorage.ts';
 
 interface AdminDashboardViewProps {
   onNavigate: (path: string) => void;
@@ -185,8 +186,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     setUploadError(null);
     try {
       const res = await api.uploadFile(file);
+      const targetId = editingEbook?.id || `ebk_${Date.now()}`;
+      
+      // Store exact raw binary file in client IndexedDB file vault
+      await saveOriginalEbookFile(targetId, file, res.fileName, res.mimeType, editingEbook?.slug);
+      if (editingEbook?.slug) {
+        await saveOriginalEbookFile(editingEbook.slug, file, res.fileName, res.mimeType);
+      }
+      await saveOriginalEbookFile(res.fileName, file, res.fileName, res.mimeType);
+
       setEditingEbook((prev) => ({
         ...prev,
+        id: prev?.id || targetId,
         downloadFileName: res.fileName,
         downloadFilePath: res.filePath,
         downloadFileSize: res.fileSize,

@@ -4,7 +4,7 @@ import confetti from 'canvas-confetti';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { api } from '../../services/api.ts';
 import { openRazorpayCheckout, getRazorpayKeyId } from '../../services/razorpay.ts';
-import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../../utils/downloadHelper.ts';
+import { downloadExactOriginalEbook } from '../../utils/downloadHelper.ts';
 
 interface CheckoutModalProps {
   onSuccess?: () => void;
@@ -89,7 +89,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
       const res = await api.getEbook(checkoutItem.itemId);
       const eb = res.ebook;
       if (eb) {
-        generateEbookHandbookFile(eb, completedOrder?.orderNumber || `THUNDER-${eb.id}`);
+        await downloadExactOriginalEbook(eb, completedOrder?.orderNumber || `THUNDER-${eb.id}`);
       }
     } catch {
       alert('Ebook package download initiated.');
