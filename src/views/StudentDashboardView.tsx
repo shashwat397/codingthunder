@@ -3,6 +3,7 @@ import { Video, BookOpen, Clock, CheckCircle2, Download, Settings, ShoppingBag, 
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { Course, Ebook, Order, Enrollment } from '../types/index.ts';
+import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../utils/downloadHelper.ts';
 
 interface StudentDashboardViewProps {
   initialTab?: string;
@@ -52,6 +53,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
     }
     loadDashboard();
   }, [user]);
+
+  const handleDownloadEbook = (ebook: Ebook, token?: string) => {
+    if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
+      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`);
+    } else if (ebook.downloadContent) {
+      downloadBlob(ebook.downloadContent, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook.downloadFileType || 'application/pdf');
+    } else {
+      generateEbookHandbookFile(ebook, token || `LIC-${ebook.id}`);
+    }
+  };
 
   const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,14 +329,13 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
                     </div>
                   </div>
 
-                  <a
-                    href={`/api/ebooks/${lic.ebook.id}/download?token=${lic.downloadToken}`}
-                    download
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-md shadow-amber-500/20"
+                  <button
+                    onClick={() => handleDownloadEbook(lic.ebook, lic.downloadToken)}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-md shadow-amber-500/20 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download</span>
-                  </a>
+                  </button>
                 </div>
               ))}
             </div>

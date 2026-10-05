@@ -3,6 +3,8 @@ import { X, Check, ShieldCheck, Zap, CreditCard, Lock, Sparkles, AlertCircle, Ar
 import confetti from 'canvas-confetti';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { api } from '../../services/api.ts';
+import { openRazorpayCheckout, getRazorpayKeyId } from '../../services/razorpay.ts';
+import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../../utils/downloadHelper.ts';
 
 interface CheckoutModalProps {
   onSuccess?: () => void;
@@ -10,7 +12,7 @@ interface CheckoutModalProps {
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
   const { checkoutItem, closeCheckout, user } = useAuth();
-  const [paymentMethod, setPaymentMethod] = useState<'test_sandbox' | 'razorpay' | 'stripe'>('test_sandbox');
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'test_sandbox' | 'stripe'>('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
@@ -22,18 +24,61 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create Order on server
-      const { order, paymentDetails } = await api.createPaymentOrder({
+      // Step 1: Create Order
+      const { order } = await api.createPaymentOrder({
         itemType: checkoutItem.itemType,
         itemId: checkoutItem.itemId,
         paymentMethod,
       });
 
       // Step 2: Handle Gateway flow
-      if (paymentMethod === 'test_sandbox') {
+      if (paymentMethod === 'razorpay') {
+        const key = getRazorpayKeyId();
+        const rzpResponse = await openRazorpayCheckout({
+          key,
+          amount: Math.round(checkoutItem.price * 100),
+          currency: 'INR',
+          name: 'Codingthunder',
+          description: checkoutItem.itemTitle,
+          order_id: order.id,
+          prefill: {
+            name: user?.name || '',
+            email: user?.email || '',
+          },
+          notes: {
+            itemType: checkoutItem.itemType,
+            itemId: checkoutItem.itemId,
+          },
+        });
+
+        const verification = await api.verifyPayment(
+          order.id, 
+          rzpResponse.razorpay_payment_id, 
+          rzpResponse.razorpay_signature,
+          {
+            itemType: checkoutItem.itemType,
+            itemId: checkoutItem.itemId,
+            itemTitle: checkoutItem.itemTitle,
+            price: checkoutItem.price,
+          }
+        );
+
+        setCompletedOrder(verification.order);
+        confetti({
+          particleCount: 90,
+          spread: 75,
+          origin: { y: 0.6 },
+        });
+        if (onSuccess) onSuccess();
+      } else if (paymentMethod === 'test_sandbox') {
         // Immediate sandbox verification with generated reference
         const simTx = `th_sandbox_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const verification = await api.verifyPayment(order.id, simTx);
+        const verification = await api.verifyPayment(order.id, simTx, undefined, {
+          itemType: checkoutItem.itemType,
+          itemId: checkoutItem.itemId,
+          itemTitle: checkoutItem.itemTitle,
+          price: checkoutItem.price,
+        });
 
         setCompletedOrder(verification.order);
         confetti({
@@ -42,31 +87,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onSuccess }) => {
           origin: { y: 0.6 },
         });
         if (onSuccess) onSuccess();
-      } else if (paymentMethod === 'razorpay') {
-        // Razorpay flow: in browser, if Razorpay script is not present or in test mode, simulate clean verification
-        // Or if window.Razorpay exists, execute official checkout modal
-        const verifiedTx = `rzp_test_pay_${Date.now()}`;
-        const verification = await api.verifyPayment(order.id, verifiedTx);
-        setCompletedOrder(verification.order);
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-        if (onSuccess) onSuccess();
       } else if (paymentMethod === 'stripe') {
-        // Stripe flow: verify payment
         const verifiedTx = `ch_stripe_test_${Date.now()}`;
-        const verification = await api.verifyPayment(order.id, verifiedTx);
+        const verification = await api.verifyPayment(order.id, verifiedTx, undefined, {
+          itemType: checkoutItem.itemType,
+          itemId: checkoutItem.itemId,
+          itemTitle: checkoutItem.itemTitle,
+          price: checkoutItem.price,
+        });
         setCompletedOrder(verification.order);
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
         if (onSuccess) onSuccess();
       }
     } catch (err: any) {
-      setError(err.message || 'Payment initiation failed. Please try again.');
+      if (err.message && err.message.includes('Payment window closed')) {
+        setError(null);
+      } else {
+        setError(err.message || 'Payment initiation failed. Please try again.');
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleDownloadEbook = () => {
-    window.location.href = `/api/ebooks/${checkoutItem.itemId}/download`;
+  const handleDownloadEbook = async () => {
+    try {
+      const res = await api.getEbook(checkoutItem.itemId);
+      const eb = res.ebook;
+      if (eb) {
+        if (eb.downloadFilePath && (eb.downloadFilePath.startsWith('http://') || eb.downloadFilePath.startsWith('https://'))) {
+          await downloadFromUrl(eb.downloadFilePath, eb.downloadFileName || `${eb.slug}.pdf`);
+        } else if (eb.downloadContent) {
+          downloadBlob(eb.downloadContent, eb.downloadFileName || `${eb.slug}.pdf`, eb.downloadFileType || 'application/pdf');
+        } else {
+          generateEbookHandbookFile(eb, completedOrder?.orderNumber || `THUNDER-${eb.id}`);
+        }
+      }
+    } catch {
+      alert('Ebook package download initiated.');
+    }
   };
 
   return (

@@ -551,19 +551,16 @@ class ApiService {
   }
 
   public async getEbook(slugOrId: string): Promise<{ ebook: Ebook | null; license: any | null }> {
+    let found: Ebook | null = null;
     if (isSupabaseConfigured()) {
       const sbEbooks = await supabaseGetEbooks(true);
-      const found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId);
-      if (found) {
-        return { ebook: found, license: null };
-      }
+      found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
     }
 
-    const serverRes = await this.request<{ ebook: Ebook; license: any | null }>(`/ebooks/${slugOrId}`);
-    if (serverRes && serverRes.ebook) return serverRes;
-
-    const all = this.getLocalEbooks();
-    const found = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || all[0] || null;
+    if (!found) {
+      const all = this.getLocalEbooks();
+      found = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
+    }
 
     let license: any | null = null;
     if (found && typeof window !== 'undefined') {
@@ -575,117 +572,425 @@ class ApiService {
           // ignore
         }
       }
+
+      // Check owned list
+      const owned = JSON.parse(localStorage.getItem('codingthunder_owned_ebook_ids') || '[]');
+      if (owned.includes(found.id) && !license) {
+        license = { id: `lic_${found.id}`, ebookId: found.id, downloadToken: `tok_${found.id}` };
+      }
     }
+
+    if (found && isSupabaseConfigured() && supabase && !license) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: sbLicense } = await supabase
+            .from('ebook_licenses')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('ebook_id', found.id)
+            .maybeSingle();
+          if (sbLicense) {
+            license = sbLicense;
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+
     return { ebook: found, license };
   }
 
   // --- Student Dashboard ---
   public async getStudentDashboard() {
-    const serverRes = await this.request<any>('/student/dashboard');
-    if (serverRes && serverRes.metrics) return serverRes;
+    let enrolledCourses: any[] = [];
+    let purchasedEbooks: any[] = [];
+    let orders: Order[] = [];
 
-    const courses = this.getLocalCourses().slice(0, 2);
-    const ebooks = this.getLocalEbooks().slice(0, 1);
+    const allCourses = this.getLocalCourses();
+    const allEbooks = this.getLocalEbooks();
+
+    if (typeof window !== 'undefined') {
+      const userOrders = JSON.parse(localStorage.getItem('codingthunder_user_orders') || '[]');
+      orders = userOrders;
+
+      const ownedEbookIds: string[] = JSON.parse(localStorage.getItem('codingthunder_owned_ebook_ids') || '[]');
+      for (const eb of allEbooks) {
+        const lic = localStorage.getItem(`codingthunder_ebook_license_${eb.id}`);
+        if (lic || ownedEbookIds.includes(eb.id)) {
+          purchasedEbooks.push({
+            id: `lic_${eb.id}`,
+            userId: 'current',
+            ebookId: eb.id,
+            purchasedAt: new Date().toISOString(),
+            downloadToken: `tok_${eb.id}`,
+            downloadCount: 0,
+            ebook: eb,
+          });
+        }
+      }
+
+      const enrolledIds: string[] = JSON.parse(localStorage.getItem('codingthunder_enrolled_course_ids') || '[]');
+      for (const crs of allCourses) {
+        const enr = localStorage.getItem(`codingthunder_enrolled_${crs.id}`);
+        if (enr || enrolledIds.includes(crs.id)) {
+          const parsed = enr ? JSON.parse(enr) : {};
+          enrolledCourses.push({
+            id: parsed.id || `enr_${crs.id}`,
+            userId: 'current',
+            courseId: crs.id,
+            enrolledAt: parsed.enrolledAt || new Date().toISOString(),
+            lastAccessedAt: parsed.lastAccessedAt || new Date().toISOString(),
+            progressPercentage: parsed.progressPercentage || 0,
+            completedLessonIds: parsed.completedLessonIds || [],
+            course: crs,
+          });
+        }
+      }
+    }
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: sbLicenses } = await supabase.from('ebook_licenses').select('*').eq('user_id', user.id);
+          if (sbLicenses && sbLicenses.length > 0) {
+            for (const lic of sbLicenses) {
+              const eb = allEbooks.find((e) => e.id === lic.ebook_id);
+              if (eb && !purchasedEbooks.some((p) => p.ebookId === lic.ebook_id)) {
+                purchasedEbooks.push({
+                  id: lic.id,
+                  userId: user.id,
+                  ebookId: lic.ebook_id,
+                  purchasedAt: lic.purchased_at,
+                  downloadToken: lic.download_token,
+                  downloadCount: lic.download_count,
+                  ebook: eb,
+                });
+              }
+            }
+          }
+
+          const { data: sbEnrollments } = await supabase.from('enrollments').select('*').eq('user_id', user.id);
+          if (sbEnrollments && sbEnrollments.length > 0) {
+            for (const enr of sbEnrollments) {
+              const crs = allCourses.find((c) => c.id === enr.course_id);
+              if (crs && !enrolledCourses.some((e) => e.courseId === enr.course_id)) {
+                enrolledCourses.push({
+                  id: enr.id,
+                  userId: user.id,
+                  courseId: enr.course_id,
+                  enrolledAt: enr.enrolled_at,
+                  lastAccessedAt: enr.last_accessed_at,
+                  progressPercentage: enr.progress_percentage || 0,
+                  completedLessonIds: enr.completed_lesson_ids || [],
+                  course: crs,
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+
+    const userObj = {
+      id: 'usr_current',
+      name: 'Developer',
+      email: 'user@codingthunder.dev',
+      role: 'student' as const,
+      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=developer',
+      createdAt: new Date().toISOString(),
+    };
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_user');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.id) userObj.id = parsed.id;
+          if (parsed.name) userObj.name = parsed.name;
+          if (parsed.email) userObj.email = parsed.email;
+        } catch {
+          // ignore
+        }
+      }
+    }
 
     return {
-      user: {
-        id: 'usr_current',
-        name: 'Developer',
-        email: 'developer@codingthunder.dev',
-        role: 'student',
-        avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=developer',
-        createdAt: new Date().toISOString(),
-      },
-      enrolledCourses: courses.map((c) => ({
-        id: `enr_${c.id}`,
-        userId: 'usr_current',
-        courseId: c.id,
-        enrolledAt: new Date().toISOString(),
-        lastAccessedAt: new Date().toISOString(),
-        progressPercentage: 45,
-        completedLessonIds: ['les_1_1'],
-        course: c,
-      })),
-      purchasedEbooks: ebooks.map((e) => ({
-        id: `lic_${e.id}`,
-        userId: 'usr_current',
-        ebookId: e.id,
-        purchasedAt: new Date().toISOString(),
-        downloadToken: `tok_${e.id}`,
-        downloadCount: 1,
-        ebook: e,
-      })),
-      orders: [],
+      user: userObj,
+      enrolledCourses,
+      purchasedEbooks,
+      orders,
       metrics: {
-        enrolledCount: courses.length,
-        completedLessons: 4,
-        hoursLearned: 12,
-        ebooksCount: ebooks.length,
+        enrolledCount: enrolledCourses.length,
+        completedLessons: enrolledCourses.reduce((acc, c) => acc + (c.completedLessonIds?.length || 0), 0),
+        hoursLearned: Math.round(enrolledCourses.length * 4.5),
+        ebooksCount: purchasedEbooks.length,
       },
     };
   }
 
   // --- Payments ---
   public async createPaymentOrder(data: { itemType: 'course' | 'ebook'; itemId: string; paymentMethod: 'razorpay' | 'stripe' | 'test_sandbox' }) {
-    const serverRes = await this.request<any>('/payments/create-order', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (serverRes && serverRes.paymentDetails) return serverRes;
+    let price = 499;
+    let title = 'Purchased Item';
+
+    if (data.itemType === 'ebook') {
+      const allEbooks = this.getLocalEbooks();
+      const eb = allEbooks.find((e) => e.id === data.itemId || e.slug === data.itemId);
+      if (eb) {
+        price = eb.price;
+        title = eb.title;
+      }
+    } else {
+      const allCourses = this.getLocalCourses();
+      const c = allCourses.find((item) => item.id === data.itemId || item.slug === data.itemId);
+      if (c) {
+        price = c.price;
+        title = c.title;
+      }
+    }
+
+    const orderNumber = `THUNDER-${Date.now().toString().slice(-6)}`;
+    const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    
+    let userEmail = 'user@codingthunder.dev';
+    let userId = 'usr_current';
+    let userName = 'Student';
+
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('codingthunder_user');
+      if (storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u.id) userId = u.id;
+          if (u.email) userEmail = u.email;
+          if (u.name) userName = u.name;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const order: Order = {
+      id: orderId,
+      orderNumber,
+      userId,
+      userEmail,
+      userName,
+      itemType: data.itemType,
+      itemId: data.itemId,
+      itemTitle: title,
+      amount: price,
+      currency: 'INR',
+      status: 'pending',
+      paymentMethod: data.paymentMethod,
+      paymentId: `pay_pending_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`codingthunder_order_${orderId}`, JSON.stringify(order));
+    }
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('orders').upsert({
+          id: order.id,
+          order_number: order.orderNumber,
+          user_id: userId.startsWith('usr_') ? null : userId,
+          user_email: userEmail,
+          user_name: userName,
+          item_type: data.itemType,
+          item_id: data.itemId,
+          item_title: title,
+          amount: price,
+          currency: 'INR',
+          status: 'pending',
+          payment_method: data.paymentMethod,
+          payment_id: order.paymentId,
+        });
+      } catch (e) {
+        console.warn('Supabase create order error:', e);
+      }
+    }
 
     return {
-      order: {
-        id: `ord_${Date.now()}`,
-        orderNumber: `THUNDER-${Date.now().toString().slice(-5)}`,
-        userId: 'usr_current',
-        userEmail: 'user@codingthunder.dev',
-        itemType: data.itemType,
-        itemId: data.itemId,
-        itemTitle: 'Purchased Item',
-        amount: 499,
-        currency: 'INR',
-        status: 'pending',
-        paymentMethod: data.paymentMethod,
-        paymentId: `pay_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-      },
+      order,
       paymentDetails: {
-        orderId: `ord_${Date.now()}`,
-        amount: 499,
+        orderId,
+        amount: price,
         currency: 'INR',
-        itemTitle: 'Course / Ebook License',
-        razorpayKeyId: 'rzp_test_sample',
-        stripePublishableKey: 'pk_test_sample',
-        isTestMode: true,
+        itemTitle: title,
+        isTestMode: data.paymentMethod === 'test_sandbox',
       },
     };
   }
 
-  public async verifyPayment(orderId: string, paymentId?: string, paymentSignature?: string) {
-    const serverRes = await this.request<any>('/payments/verify', {
-      method: 'POST',
-      body: JSON.stringify({ orderId, paymentId, paymentSignature }),
-    });
-    if (serverRes && serverRes.success) return serverRes;
+  public async verifyPayment(
+    orderId: string, 
+    paymentId?: string, 
+    paymentSignature?: string,
+    itemContext?: { itemType: 'course' | 'ebook'; itemId: string; itemTitle?: string; price?: number }
+  ) {
+    let order: Order | null = null;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`codingthunder_order_${orderId}`);
+      if (stored) {
+        try {
+          order = JSON.parse(stored);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const itemType = order?.itemType || itemContext?.itemType || 'ebook';
+    const itemId = order?.itemId || itemContext?.itemId || '';
+    const itemTitle = order?.itemTitle || itemContext?.itemTitle || 'Purchased Item';
+    const amount = order?.amount || itemContext?.price || 499;
+
+    let userId = order?.userId || 'usr_current';
+    let userEmail = order?.userEmail || 'user@codingthunder.dev';
+    if (typeof window !== 'undefined' && userId === 'usr_current') {
+      const storedUser = localStorage.getItem('codingthunder_user');
+      if (storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u.id) userId = u.id;
+          if (u.email) userEmail = u.email;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const completedOrder: Order = {
+      id: orderId,
+      orderNumber: order?.orderNumber || `THUNDER-${Date.now().toString().slice(-6)}`,
+      userId,
+      userEmail,
+      userName: order?.userName || 'Student',
+      itemType,
+      itemId,
+      itemTitle,
+      amount,
+      currency: 'INR',
+      status: 'completed',
+      paymentMethod: order?.paymentMethod || 'razorpay',
+      paymentId: paymentId || `pay_verified_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`codingthunder_order_${orderId}`, JSON.stringify(completedOrder));
+      
+      const userOrders = JSON.parse(localStorage.getItem('codingthunder_user_orders') || '[]');
+      userOrders.unshift(completedOrder);
+      localStorage.setItem('codingthunder_user_orders', JSON.stringify(userOrders));
+    }
+
+    // 1. If Ebook -> Grant Ebook License & Enable Download
+    if (itemType === 'ebook' && itemId) {
+      const downloadToken = `dl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const license = {
+        id: `lic_${Date.now()}`,
+        userId,
+        ebookId: itemId,
+        orderId,
+        purchasedAt: new Date().toISOString(),
+        downloadToken,
+        downloadCount: 0,
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`codingthunder_ebook_license_${itemId}`, JSON.stringify(license));
+        const owned = JSON.parse(localStorage.getItem('codingthunder_owned_ebook_ids') || '[]');
+        if (!owned.includes(itemId)) {
+          owned.push(itemId);
+          localStorage.setItem('codingthunder_owned_ebook_ids', JSON.stringify(owned));
+        }
+      }
+
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const targetUserId = user?.id || (userId.startsWith('usr_') ? null : userId);
+          if (targetUserId) {
+            await supabase.from('ebook_licenses').upsert({
+              id: license.id,
+              user_id: targetUserId,
+              ebook_id: itemId,
+              order_id: orderId,
+              download_token: downloadToken,
+              download_count: 0,
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase ebook license save error:', e);
+        }
+      }
+    }
+
+    // 2. If Course -> Grant Enrollment
+    if (itemType === 'course' && itemId) {
+      const enrollment: Enrollment = {
+        id: `enr_${Date.now()}`,
+        userId,
+        courseId: itemId,
+        enrolledAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+        progressPercentage: 0,
+        completedLessonIds: [],
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`codingthunder_enrolled_${itemId}`, JSON.stringify(enrollment));
+        const enrolled = JSON.parse(localStorage.getItem('codingthunder_enrolled_course_ids') || '[]');
+        if (!enrolled.includes(itemId)) {
+          enrolled.push(itemId);
+          localStorage.setItem('codingthunder_enrolled_course_ids', JSON.stringify(enrolled));
+        }
+      }
+
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const targetUserId = user?.id || (userId.startsWith('usr_') ? null : userId);
+          if (targetUserId) {
+            await supabase.from('enrollments').upsert({
+              id: enrollment.id,
+              user_id: targetUserId,
+              course_id: itemId,
+              order_id: orderId,
+              progress_percentage: 0,
+              completed_lesson_ids: [],
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase course enrollment save error:', e);
+        }
+      }
+    }
+
+    // Update order status in Supabase
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from('orders')
+          .update({ status: 'completed', payment_id: paymentId })
+          .eq('id', orderId);
+      } catch (e) {
+        // Non-critical
+      }
+    }
 
     return {
       success: true,
       message: 'Payment verified and access granted successfully!',
-      order: {
-        id: orderId,
-        orderNumber: `THUNDER-${Date.now().toString().slice(-5)}`,
-        userId: 'usr_current',
-        userEmail: 'user@codingthunder.dev',
-        itemType: 'course',
-        itemId: 'crs_webdev_01',
-        itemTitle: 'Course Access',
-        amount: 499,
-        currency: 'INR',
-        status: 'completed',
-        paymentMethod: 'test_sandbox',
-        paymentId: paymentId || `pay_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-      },
+      order: completedOrder,
     };
   }
 

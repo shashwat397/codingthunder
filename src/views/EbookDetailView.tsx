@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Download, ShieldCheck, Check, Sparkles, X, FileTex
 import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { downloadFromUrl, downloadBlob, generateEbookHandbookFile } from '../utils/downloadHelper.ts';
 
 interface EbookDetailViewProps {
   slugOrId: string;
@@ -33,9 +34,27 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
     loadEbook();
   }, [slugOrId, user]);
 
+  const isOwned = !!license || user?.role === 'admin';
+
   const handleDownload = () => {
     if (!ebook) return;
-    window.location.href = `/api/ebooks/${ebook.id}/download`;
+    if (!isOwned) {
+      openCheckout({
+        itemType: 'ebook',
+        itemId: ebook.id,
+        itemTitle: ebook.title,
+        price: ebook.price,
+      });
+      return;
+    }
+
+    if (ebook.downloadFilePath && (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://'))) {
+      downloadFromUrl(ebook.downloadFilePath, ebook.downloadFileName || `${ebook.slug}.pdf`);
+    } else if (ebook.downloadContent) {
+      downloadBlob(ebook.downloadContent, ebook.downloadFileName || `${ebook.slug}.pdf`, ebook.downloadFileType || 'application/pdf');
+    } else {
+      generateEbookHandbookFile(ebook, license?.downloadToken || `THUNDER-${ebook.id}`);
+    }
   };
 
   if (loading) {
@@ -59,8 +78,6 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
       </div>
     );
   }
-
-  const isOwned = !!license || user?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-[#070a12] text-slate-100 pb-20">

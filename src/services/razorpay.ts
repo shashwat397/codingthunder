@@ -1,0 +1,163 @@
+// ============================================================================
+// RAZORPAY PAYMENT GATEWAY SERVICE
+// ============================================================================
+
+export interface RazorpayPaymentSuccess {
+  razorpay_payment_id: string;
+  razorpay_order_id?: string;
+  razorpay_signature?: string;
+}
+
+export interface RazorpayCheckoutOptions {
+  key?: string;
+  amount: number; // in paise (e.g. ₹499 -> 49900)
+  currency?: string;
+  name: string;
+  description: string;
+  image?: string;
+  order_id?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+    backdrop_color?: string;
+  };
+}
+
+let razorpayScriptPromise: Promise<boolean> | null = null;
+
+/**
+ * Loads the official Razorpay Checkout SDK dynamically
+ */
+export function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+
+  if ((window as any).Razorpay) {
+    return Promise.resolve(true);
+  }
+
+  if (razorpayScriptPromise) {
+    return razorpayScriptPromise;
+  }
+
+  razorpayScriptPromise = new Promise((resolve) => {
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true));
+      existing.addEventListener('error', () => resolve(false));
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => {
+      console.warn('Failed to load Razorpay script');
+      resolve(false);
+    };
+    document.body.appendChild(script);
+  });
+
+  return razorpayScriptPromise;
+}
+
+/**
+ * Gets configured Razorpay Key ID
+ */
+export function getRazorpayKeyId(): string {
+  if (typeof window !== 'undefined') {
+    const customKey = localStorage.getItem('codingthunder_razorpay_key_id');
+    if (customKey && customKey.trim()) return customKey.trim();
+  }
+
+  const envKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID;
+  if (envKey && envKey !== 'MY_RAZORPAY_KEY_ID' && envKey !== 'rzp_test_sample_key_id') {
+    return envKey;
+  }
+
+  // Configured Razorpay key
+  return 'rzp_test_TkALupdCqOczP8';
+}
+
+/**
+ * Sets a custom Razorpay Key ID in local storage for instant live testing
+ */
+export function setCustomRazorpayKeyId(keyId: string) {
+  if (typeof window !== 'undefined') {
+    if (keyId) {
+      localStorage.setItem('codingthunder_razorpay_key_id', keyId.trim());
+    } else {
+      localStorage.removeItem('codingthunder_razorpay_key_id');
+    }
+  }
+}
+
+/**
+ * Opens Razorpay Standard Checkout Popup
+ */
+export async function openRazorpayCheckout(
+  options: RazorpayCheckoutOptions
+): Promise<RazorpayPaymentSuccess> {
+  const loaded = await loadRazorpayScript();
+  if (!loaded || !(window as any).Razorpay) {
+    throw new Error('Could not load Razorpay payment gateway. Please check your internet connection.');
+  }
+
+  const key = options.key || getRazorpayKeyId();
+
+  return new Promise((resolve, reject) => {
+    try {
+      const rzpOptions = {
+        key,
+        amount: Math.round(options.amount), // in paise
+        currency: options.currency || 'INR',
+        name: options.name || 'Codingthunder',
+        description: options.description || 'Course/Ebook Purchase',
+        image: options.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=128&q=80',
+        order_id: options.order_id,
+        prefill: {
+          name: options.prefill?.name || '',
+          email: options.prefill?.email || '',
+          contact: options.prefill?.contact || '',
+        },
+        notes: options.notes || {},
+        theme: {
+          color: options.theme?.color || '#f59e0b',
+          backdrop_color: options.theme?.backdrop_color || '#070a12',
+        },
+        handler: (response: any) => {
+          if (response && response.razorpay_payment_id) {
+            resolve({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+          } else {
+            reject(new Error('Invalid response from Razorpay'));
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            reject(new Error('Payment window closed by user'));
+          },
+          escape: true,
+          backdropclose: false,
+        },
+      };
+
+      const razorpayInstance = new (window as any).Razorpay(rzpOptions);
+      razorpayInstance.on('payment.failed', (response: any) => {
+        reject(new Error(response?.error?.description || 'Payment transaction failed'));
+      });
+
+      razorpayInstance.open();
+    } catch (err: any) {
+      reject(new Error(err.message || 'Failed to initiate Razorpay checkout'));
+    }
+  });
+}
