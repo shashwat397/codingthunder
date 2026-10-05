@@ -19,6 +19,7 @@ import {
   Binary
 } from 'lucide-react';
 import { api } from '../services/api.ts';
+import { CareerRoadmaps } from '../components/common/CareerRoadmaps.tsx';
 
 interface StaticPagesProps {
   page: 'about' | 'contact' | 'faq' | 'privacy' | 'terms' | 'roadmaps';
@@ -385,88 +386,10 @@ export const StaticPages: React.FC<StaticPagesProps> = ({ page, onNavigate }) =>
       )}
 
       {/* ========================================================= */}
-      {/* 4. ROADMAPS PAGE */}
+      {/* 4. ROADMAPS PAGE: VISUAL MILESTONE STEPPER */}
       {/* ========================================================= */}
       {page === 'roadmaps' && (
-        <div className="space-y-8">
-          <div className="space-y-2">
-            <span className="text-xs font-mono uppercase text-amber-400 font-semibold">Step-by-Step Tracks</span>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white">2026 Developer Roadmaps</h1>
-            <p className="text-sm text-slate-400">
-              Clear learning paths designed to take you from fundamentals to employment.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Full-Stack Web Architect</h3>
-                <span className="text-xs font-mono text-amber-400">6 Months Track</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                HTML5 & CSS Grid ➜ TypeScript ESNext ➜ React 19 & Next.js 15 ➜ Express & REST ➜ PostgreSQL & Prisma ➜ Docker & Cloud Run.
-              </p>
-              <button
-                onClick={() => onNavigate('/courses')}
-                className="text-xs text-amber-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>View Full-Stack Courses</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Python Backend & Automation</h3>
-                <span className="text-xs font-mono text-cyan-400">4 Months Track</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Python 3.12 Core ➜ OOP & Decorators ➜ Web Scraping with Playwright ➜ High-Throughput FastAPI ➜ Celery & Redis Queues.
-              </p>
-              <button
-                onClick={() => onNavigate('/courses')}
-                className="text-xs text-cyan-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>View Python Track</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">DSA & Interview Placement</h3>
-                <span className="text-xs font-mono text-emerald-400">3 Months Track</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Big-O Complexity ➜ Two Pointers & Sliding Window ➜ Trees & Tries ➜ Graph BFS/DFS ➜ Dynamic Programming (1D & 2D).
-              </p>
-              <button
-                onClick={() => onNavigate('/ebooks')}
-                className="text-xs text-emerald-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>View DSA 150 Core Patterns</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">DevOps & Cloud Engineering</h3>
-                <span className="text-xs font-mono text-purple-400">5 Months Track</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Linux Shell Scripting ➜ Docker Multi-Stage Builds ➜ Kubernetes Pods & Services ➜ GitHub Actions CI/CD ➜ Prometheus Monitoring.
-              </p>
-              <button
-                onClick={() => onNavigate('/courses')}
-                className="text-xs text-purple-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>Explore DevOps Track</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
+        <CareerRoadmaps onNavigate={onNavigate} />
       )}
 
       {/* ========================================================= */}

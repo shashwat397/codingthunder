@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Zap, Play, BookOpen, Star, Clock, CheckCircle2, ArrowRight, ShieldCheck, Download, Code2, Users, Flame, Terminal as TerminalIcon } from 'lucide-react';
+import { Zap, Play, BookOpen, Star, Clock, CheckCircle2, ArrowRight, ShieldCheck, Download, Code2, Users, Flame, Terminal as TerminalIcon, Sparkles } from 'lucide-react';
 import { TerminalHero } from '../components/common/TerminalHero.tsx';
+import { DataSandbox } from '../components/common/DataSandbox.tsx';
 import { Course, Tutorial, Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -101,6 +102,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
             <TerminalHero />
           </div>
         </div>
+      </section>
+
+      {/* Interactive SQL & Pandas Sandbox Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Interactive Data Engineering Laboratory</span>
+          </div>
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white">
+            Run Queries on Live Production Data
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400">
+            Execute SQL aggregations and Pandas transformations directly in your browser. No local setup or installation required.
+          </p>
+        </div>
+
+        <DataSandbox />
       </section>
 
       {/* 2. Value Propositions (The Thunder Way) */}
