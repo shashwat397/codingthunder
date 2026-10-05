@@ -899,40 +899,21 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
           </div>
 
           <div className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white">Payment Gateway Configuration (Razorpay & Stripe)</h3>
+            <h3 className="text-base font-bold text-white">Payment Gateway Configuration (Razorpay)</h3>
             <p className="text-xs text-slate-400">
-              Configure your keys here or via environment variables in <code className="text-amber-400 font-mono">.env</code>.
+              Payments are processed exclusively through Razorpay (UPI, PhonePe, GPay, Paytm, Cards, NetBanking). Configure your key here or via <code className="text-amber-400 font-mono">VITE_RAZORPAY_KEY_ID</code> in environment variables.
             </p>
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Razorpay Key ID</label>
               <input
                 type="text"
+                placeholder="rzp_test_... or rzp_live_..."
                 value={settings.razorpayKeyId}
                 onChange={(e) => setSettings({ ...settings, razorpayKeyId: e.target.value })}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm"
               />
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Stripe Publishable Key</label>
-              <input
-                type="text"
-                value={settings.stripePublishableKey}
-                onChange={(e) => setSettings({ ...settings, stripePublishableKey: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm"
-              />
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={settings.testModeEnabled}
-                onChange={(e) => setSettings({ ...settings, testModeEnabled: e.target.checked })}
-                className="accent-amber-500"
-              />
-              <span>Enable 1-Click Test Mode Sandbox (For instant evaluation & testing)</span>
-            </label>
           </div>
 
           <button
