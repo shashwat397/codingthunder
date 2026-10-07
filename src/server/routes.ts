@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { db, saveUploadedFile, UPLOADS_DIR } from './db.ts';
 import { hashPassword, verifyPassword, createToken, verifyToken, TokenPayload } from './auth.ts';
-import { Course, Tutorial, Ebook, Order } from '../types/index.ts';
+import { Course, Tutorial, Ebook, Order, User } from '../types/index.ts';
 
 export const apiRouter = Router();
 
@@ -121,7 +121,8 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
 
   const cleanEmail = email.toLowerCase().trim();
   const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
-  let rawUser = db.getUserByEmail(cleanEmail);
+  const rawUser = db.getUserByEmail(cleanEmail);
+  let safeUser: User;
 
   if (!rawUser) {
     const allUsers = db.getUsers();
@@ -129,7 +130,7 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
     const computedName = name || cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
     const computedAvatar = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`;
 
-    rawUser = db.createUser({
+    safeUser = db.createUser({
       id: `usr_g_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: computedName,
       email: cleanEmail,
@@ -138,14 +139,17 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
       avatar: computedAvatar,
       createdAt: new Date().toISOString(),
     });
-  } else if (isOwner && rawUser.role !== 'admin') {
-    db.updateUserRole(rawUser.id, 'admin');
-    rawUser.role = 'admin';
+  } else {
+    if (isOwner && rawUser.role !== 'admin') {
+      db.updateUser(rawUser.id, { role: 'admin' });
+      rawUser.role = 'admin';
+    }
+    const { passwordHash, ...u } = rawUser;
+    safeUser = u;
   }
 
-  const { passwordHash, ...user } = rawUser;
-  const token = createToken({ userId: user.id, email: user.email, role: user.role });
-  return res.json({ user, token });
+  const token = createToken({ userId: safeUser.id, email: safeUser.email, role: safeUser.role });
+  return res.json({ user: safeUser, token });
 });
 
 apiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
@@ -772,6 +776,21 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
 
   const slug = body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
+  const chapters = Array.isArray(body.chapters) ? body.chapters.map((ch: any, idx: number) => {
+    if (typeof ch === 'string') {
+      const pageMatch = ch.match(/\(Page\s*(\d+)\)/i) || ch.match(/[-:]\s*page\s*(\d+)/i);
+      const cleanTitle = ch.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').trim();
+      return {
+        title: cleanTitle || `Module ${idx + 1}`,
+        page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
+      };
+    }
+    return {
+      title: ch?.title?.trim() || `Module ${idx + 1}`,
+      page: Number(ch?.page) || (idx * 15 + 1),
+    };
+  }) : [{ title: 'Chapter 1: Foundations', page: 1 }];
+
   const newEbook: Ebook = {
     id: body.id || `ebk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     slug,
@@ -784,7 +803,7 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
     originalPrice: Number(body.originalPrice) || 899,
     coverImage: body.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
     previewSnippet: body.previewSnippet || 'Sample chapter preview...',
-    chapters: body.chapters || [{ title: 'Chapter 1: Foundations', page: 1 }],
+    chapters,
     features: body.features || ['Digital PDF download', 'Lifetime updates'],
     downloadFileName: body.downloadFileName || `${slug}.pdf`,
     downloadFileSize: body.downloadFileSize || '15 MB',
@@ -802,7 +821,25 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
 });
 
 apiRouter.put('/admin/ebooks/:id', requireAdmin, (req: Request, res: Response) => {
-  let updated = db.updateEbook(req.params.id, req.body);
+  const body = { ...req.body };
+  if (body.chapters && Array.isArray(body.chapters)) {
+    body.chapters = body.chapters.map((ch: any, idx: number) => {
+      if (typeof ch === 'string') {
+        const pageMatch = ch.match(/\(Page\s*(\d+)\)/i) || ch.match(/[-:]\s*page\s*(\d+)/i);
+        const cleanTitle = ch.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').trim();
+        return {
+          title: cleanTitle || `Module ${idx + 1}`,
+          page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
+        };
+      }
+      return {
+        title: ch?.title?.trim() || `Module ${idx + 1}`,
+        page: Number(ch?.page) || (idx * 15 + 1),
+      };
+    });
+  }
+
+  let updated = db.updateEbook(req.params.id, body);
   if (!updated) {
     const slug = req.body.slug || (req.body.title ? req.body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : `ebook-${Date.now()}`);
     const newEbook: Ebook = {

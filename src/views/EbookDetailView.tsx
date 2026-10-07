@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, BookOpen, Download, ShieldCheck, Check, Sparkles, X, FileText, Lock } from 'lucide-react';
+import { ArrowLeft, BookOpen, Download, ShieldCheck, Check, Sparkles, X, FileText, Lock, ListOrdered } from 'lucide-react';
 import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -16,25 +16,46 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
   const [license, setLicense] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTab, setPreviewTab] = useState<'toc' | 'excerpt'>('toc');
+
+  const loadEbook = async () => {
+    try {
+      const res = await api.getEbook(slugOrId);
+      if (res && res.ebook) {
+        setEbook(res.ebook);
+        setLicense(res.license || null);
+      }
+    } catch (err) {
+      console.error('Failed to load ebook:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadEbook() {
-      try {
-        const res = await api.getEbook(slugOrId);
-        if (res) {
-          setEbook(res.ebook || null);
-          setLicense(res.license || null);
-        }
-      } catch (err) {
-        console.error('Failed to load ebook:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadEbook();
+
+    const handleUpdate = () => {
+      loadEbook();
+    };
+    window.addEventListener('codingthunder_ebooks_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('codingthunder_ebooks_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, [slugOrId, user]);
 
   const isOwned = !!license || user?.role === 'admin';
+
+  const normalizedChapters = (ebook?.chapters && Array.isArray(ebook.chapters) && ebook.chapters.length > 0)
+    ? ebook.chapters.map((ch: any, idx: number) => {
+        const title = typeof ch === 'string' ? ch : (ch?.title || `Module ${idx + 1}`);
+        const page = typeof ch === 'object' && ch?.page ? ch.page : (idx * 15 + 1);
+        return { title, page };
+      })
+    : [{ title: 'Module 1: Core Fundamentals & System Design', page: 1 }];
 
   const handleDownload = () => {
     if (!ebook) return;
@@ -194,12 +215,27 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
 
             {/* Table of Contents */}
             <div className="space-y-3">
-              <h3 className="text-lg font-bold text-white">Table of Contents</h3>
-              <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60 bg-[#0c101c]">
-                {ebook.chapters.map((ch, i) => (
-                  <div key={i} className="p-3.5 flex items-center justify-between text-xs text-slate-300">
-                    <span className="font-medium text-white">{ch.title}</span>
-                    <span className="font-mono text-slate-500">Page {ch.page}</span>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ListOrdered className="w-5 h-5 text-amber-400" />
+                  <span>Table of Contents</span>
+                </h3>
+                <span className="text-xs font-mono text-slate-400">
+                  {normalizedChapters.length} Modules · {ebook.pages} Pages
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60 bg-[#0c101c] overflow-hidden shadow-xl">
+                {normalizedChapters.map((ch, i) => (
+                  <div key={i} className="p-3.5 flex items-center justify-between text-xs text-slate-300 hover:bg-slate-900/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0">
+                        {i + 1}
+                      </span>
+                      <span className="font-medium text-white text-xs sm:text-sm">{ch.title}</span>
+                    </div>
+                    <span className="font-mono text-slate-400 text-xs px-2.5 py-1 rounded bg-slate-900 border border-slate-800 shrink-0">
+                      Page {ch.page}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -215,7 +251,7 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
                 <BookOpen className="w-4 h-4" />
-                <span>Sample Preview: {ebook.title}</span>
+                <span>Look Inside: {ebook.title}</span>
               </div>
               <button
                 onClick={() => setPreviewOpen(false)}
@@ -225,12 +261,68 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto py-6 space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
-              <div className="whitespace-pre-wrap font-sans">{ebook.previewSnippet}</div>
+            {/* Preview Modal Tabs */}
+            <div className="grid grid-cols-2 p-1 bg-slate-900/90 rounded-xl border border-slate-800 my-4">
+              <button
+                type="button"
+                onClick={() => setPreviewTab('toc')}
+                className={`py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  previewTab === 'toc'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ListOrdered className="w-3.5 h-3.5" />
+                <span>Table of Contents ({normalizedChapters.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewTab('excerpt')}
+                className={`py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  previewTab === 'excerpt'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Reading Excerpt</span>
+              </button>
+            </div>
+
+            {/* Preview Modal Content */}
+            <div className="flex-1 overflow-y-auto py-2 space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed font-sans pr-1">
+              {previewTab === 'toc' ? (
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-400 pb-1">
+                    Complete chapter outline included in the digital edition:
+                  </div>
+                  <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60 bg-slate-950/70 overflow-hidden">
+                    {normalizedChapters.map((ch, i) => (
+                      <div key={i} className="p-3 flex items-center justify-between text-xs hover:bg-slate-900/50">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-5 h-5 rounded bg-slate-800 text-amber-400 font-mono text-[10px] font-bold flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <span className="font-medium text-white">{ch.title}</span>
+                        </div>
+                        <span className="font-mono text-slate-400 text-[11px]">
+                          Starts Pg. {ch.page}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap font-sans p-4 rounded-xl bg-slate-950/70 border border-slate-800 text-slate-200">
+                  {ebook.previewSnippet || 'Complete syllabus and chapter excerpts are unlocked upon purchase.'}
+                </div>
+              )}
             </div>
 
             <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-500 font-mono">Showing 1 of {ebook.pages} pages</span>
+              <span className="text-xs text-slate-500 font-mono">
+                {previewTab === 'toc' ? `${normalizedChapters.length} modules listed` : `Showing excerpt of ${ebook.pages} pages`}
+              </span>
               <button
                 onClick={() => {
                   setPreviewOpen(false);
