@@ -140,6 +140,23 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
   return { user: mappedUser, session: data.session, error: null };
 }
 
+export async function supabaseSignInWithGoogle(): Promise<{ error: string | null }> {
+  if (!supabase) {
+    return { error: 'Supabase is not configured yet.' };
+  }
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    return { error: error ? error.message : null };
+  } catch (err: any) {
+    return { error: err.message || 'Google OAuth failed' };
+  }
+}
+
 export async function supabasePromoteToAdmin(userId: string): Promise<boolean> {
   localStorage.setItem(`codingthunder_admin_${userId}`, 'true');
   if (!supabase) return true;
