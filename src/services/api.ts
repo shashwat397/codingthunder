@@ -598,24 +598,13 @@ class ApiService {
   public async getEbook(slugOrId: string): Promise<{ ebook: Ebook | null; license: any | null }> {
     let found: Ebook | null = null;
 
-    // 1. Check local persistent store first (instant reflection of admin edits)
-    const all = this.getLocalEbooks();
-    const localFound = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
-    if (localFound) {
-      found = localFound;
+    // 1. Supabase Cloud Store
+    if (isSupabaseConfigured()) {
+      const sbEbooks = await supabaseGetEbooks(true);
+      found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
     }
 
-    // 2. Supabase Cloud Store fallback if not in local store
-    if (!found && isSupabaseConfigured()) {
-      try {
-        const sbEbooks = await supabaseGetEbooks(true);
-        found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
-      } catch (err) {
-        console.warn('Supabase getEbook error:', err);
-      }
-    }
-
-    // 3. Server API fallback if not found
+    // 2. Server API
     if (!found) {
       try {
         const serverRes = await this.request<{ ebook: Ebook; license: any }>(`/ebooks/${slugOrId}`);
@@ -623,8 +612,14 @@ class ApiService {
           found = serverRes.ebook;
         }
       } catch {
-        // Continue
+        // Continue to local storage fallback
       }
+    }
+
+    // 3. Local persistent store
+    if (!found) {
+      const all = this.getLocalEbooks();
+      found = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
     }
 
     // Always normalize chapters to structured array

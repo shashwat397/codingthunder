@@ -287,33 +287,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     if (!editingEbook?.title || !editingEbook?.author) return;
     try {
       const isExisting = editingEbook.id && ebooks.some((item) => item.id === editingEbook.id);
-
-      // Determine final chapters:
-      let finalChapters: any[] = [];
-      if (Array.isArray(editingEbook.chapters) && editingEbook.chapters.length > 0) {
-        finalChapters = editingEbook.chapters.map((ch: any, idx: number) => {
-          if (typeof ch === 'string') {
-            const pageMatch = ch.match(/\(Page\s*(\d+)\)/i) || ch.match(/[-:]\s*page\s*(\d+)/i);
-            const cleanTitle = ch.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').trim();
-            return {
-              title: cleanTitle || `Module ${idx + 1}`,
-              page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
-            };
-          }
-          return {
-            title: ch?.title?.trim() || `Module ${idx + 1}`,
-            page: Number(ch?.page) || (idx * 15 + 1),
-          };
-        });
-      } else if (tocRawText.trim()) {
-        finalChapters = parseTocTextToChapters(tocRawText);
-      } else {
-        finalChapters = [{ title: 'Module 1: Foundations', page: 1 }];
-      }
-
+      const parsedChapters = parseTocTextToChapters(tocRawText);
       const payload: Partial<Ebook> = {
         ...editingEbook,
-        chapters: finalChapters,
+        chapters: parsedChapters.length > 0 ? parsedChapters : (editingEbook.chapters || [{ title: 'Module 1: Foundations', page: 1 }]),
       };
 
       let saved: Ebook;
@@ -330,7 +307,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('codingthunder_ebooks_updated'));
       }
-      setBannerNotice(`Ebook "${saved.title}" saved and published successfully with ${saved.chapters.length} modules.`);
+      setBannerNotice(`Ebook "${saved.title}" saved and published successfully.`);
     } catch (err: any) {
       alert(err.message || 'Failed to save ebook');
     }
