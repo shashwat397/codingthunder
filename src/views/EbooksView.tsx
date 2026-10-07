@@ -29,6 +29,12 @@ export const EbooksView: React.FC<EbooksViewProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     fetchEbooks();
+
+    const onCatalogUpdated = () => {
+      fetchEbooks();
+    };
+    window.addEventListener('catalog-updated', onCatalogUpdated);
+    return () => window.removeEventListener('catalog-updated', onCatalogUpdated);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {

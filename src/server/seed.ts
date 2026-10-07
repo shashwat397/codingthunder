@@ -1,7 +1,39 @@
 import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLicense } from '../types/index.ts';
 
+// Precomputed PBKDF2 password hashes for demo users (prevents Node.js crypto module being pulled into browser bundle)
+const DEMO_ADMIN_HASH = 'f54e6b69be4fb6ebef5be50af062738e:1fcfb46bb1275c2752d9734e4ce32750ccb976c17337113ca25c3d00c1d10204f0034f8478f9a6e8d62c1e8018be909597f7b20db3bc0ea93f82986660b3311f';
+const DEMO_STUDENT_HASH = '9cb9da61770799995b7f255bddd604f1:2989976295e43ecc2c80d0b70c1596efb3157ff92b972316ed7e4302428514c81fcfd7ada813409c1fed4b80217902739fec7354a900eb29ce98f66de04eb6ce';
+
 export function getSeedData() {
-  const users: (User & { passwordHash: string })[] = [];
+  const users: (User & { passwordHash: string })[] = [
+    {
+      id: 'usr_admin_default',
+      name: 'Thunder Admin',
+      email: 'admin@codingthunder.demo',
+      passwordHash: DEMO_ADMIN_HASH,
+      role: 'admin',
+      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=admin',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'usr_student_default',
+      name: 'Thunder Student',
+      email: 'student@codingthunder.demo',
+      passwordHash: DEMO_STUDENT_HASH,
+      role: 'student',
+      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=student',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'usr_owner_default',
+      name: 'Thunder Site Owner',
+      email: 'mishrashashwat90@gmail.com',
+      passwordHash: DEMO_ADMIN_HASH,
+      role: 'admin',
+      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90%40gmail.com',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ];
 
   const courses: Course[] = [
     {

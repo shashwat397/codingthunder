@@ -105,7 +105,7 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
   }
 
   const isOwner = (sbUser.email || email).trim().toLowerCase() === 'mishrashashwat90@gmail.com';
-  let role: 'student' | 'admin' = isOwner ? 'admin' : ((sbUser.user_metadata?.role as 'student' | 'admin') || 'student');
+  let role: 'student' | 'admin' = isOwner ? 'admin' : 'student';
   let name = (sbUser.user_metadata?.name as string) || email.split('@')[0];
 
   try {
@@ -116,17 +116,15 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
       .maybeSingle();
 
     if (profile?.role) {
-      role = profile.role;
+      role = isOwner ? profile.role : 'student';
       if (profile.name) name = profile.name;
     }
   } catch {
     // Non-critical
   }
 
-  // Check if locally claimed admin for this specific user ID
-  if (localStorage.getItem(`codingthunder_admin_${sbUser.id}`) === 'true') {
-    role = 'admin';
-  }
+  // Strictly only mishrashashwat90@gmail.com can ever have admin role
+  role = isOwner ? 'admin' : 'student';
 
   const mappedUser: User = {
     id: sbUser.id,
@@ -140,17 +138,37 @@ export async function supabaseSignIn(email: string, password: string): Promise<{
   return { user: mappedUser, session: data.session, error: null };
 }
 
-export async function supabasePromoteToAdmin(userId: string): Promise<boolean> {
-  localStorage.setItem(`codingthunder_admin_${userId}`, 'true');
-  if (!supabase) return true;
+export async function supabaseSignInWithGoogle(): Promise<{ error: string | null }> {
+  if (!supabase) {
+    return { error: 'Supabase is not configured yet.' };
+  }
   try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    return { error: error ? error.message : null };
+  } catch (err: any) {
+    return { error: err.message || 'Google OAuth failed' };
+  }
+}
+
+export async function supabasePromoteToAdmin(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data: userRecord } = await supabase.auth.getUser();
+    if (userRecord.user?.email?.trim().toLowerCase() !== 'mishrashashwat90@gmail.com') {
+      return false;
+    }
     const { error } = await supabase
       .from('profiles')
       .update({ role: 'admin' })
       .eq('id', userId);
     return !error;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -181,16 +199,15 @@ export async function supabaseGetSession(): Promise<{ user: User | null; session
       .maybeSingle();
 
     if (profile?.role) {
-      role = profile.role;
+      role = isOwner ? profile.role : 'student';
       if (profile.name) name = profile.name;
     }
   } catch {
     // Non-critical
   }
 
-  if (localStorage.getItem(`codingthunder_admin_${sbUser.id}`) === 'true') {
-    role = 'admin';
-  }
+  // Strictly enforce only mishrashashwat90@gmail.com can ever have admin role
+  role = isOwner ? 'admin' : 'student';
 
   const mappedUser: User = {
     id: sbUser.id,

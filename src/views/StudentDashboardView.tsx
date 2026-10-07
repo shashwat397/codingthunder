@@ -4,6 +4,7 @@ import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { Course, Ebook, Order, Enrollment } from '../types/index.ts';
 import { downloadExactOriginalEbook } from '../utils/downloadHelper.ts';
+import { subscribeToRealtimeEvents } from '../services/realtime.ts';
 
 interface StudentDashboardViewProps {
   initialTab?: string;
@@ -11,7 +12,7 @@ interface StudentDashboardViewProps {
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ initialTab = 'courses', onNavigate }) => {
-  const { user, refreshUser, claimAdminRole } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'courses' | 'ebooks' | 'orders' | 'settings'>(
     (initialTab as any) || 'courses'
   );
@@ -52,6 +53,14 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
       }
     }
     loadDashboard();
+
+    const unsubscribe = subscribeToRealtimeEvents((event) => {
+      if (event.entity === 'course' || event.entity === 'ebook') {
+        loadDashboard();
+      }
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const handleDownloadEbook = (ebook: Ebook, token?: string) => {
@@ -386,39 +395,23 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ init
         <div className="max-w-2xl space-y-6">
           <h3 className="text-lg font-bold text-white">Account & Security</h3>
 
-          {/* Administrator Role Banner - Only visible to admin or site owner */}
-          {(user?.role === 'admin' || user?.email?.toLowerCase() === 'mishrashashwat90@gmail.com') && (
+          {/* Administrator Role Banner - Only visible to mishrashashwat90@gmail.com */}
+          {user?.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com' && user?.role === 'admin' && (
             <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h4 className="text-sm font-bold text-amber-300">Administrator Privileges</h4>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {user?.role === 'admin'
-                      ? 'Your account currently has full Administrator control over courses, tutorials, ebooks, and users.'
-                      : 'Claim administrator permissions to unlock the Course Builder, Ebook Uploads, and Admin Dashboard.'}
+                    Your account has full Administrator control over courses, ebooks, orders, and users.
                   </p>
                 </div>
-                {user?.role === 'admin' ? (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/admin')}
-                    className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs whitespace-nowrap cursor-pointer hover:bg-amber-400 shadow-md"
-                  >
-                    Open Admin Dashboard
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await claimAdminRole();
-                      setSettingsSuccess('Successfully upgraded your account to Administrator!');
-                      setTimeout(() => onNavigate('/admin'), 1200);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap cursor-pointer shadow-lg shadow-amber-500/20"
-                  >
-                    ⚡ Upgrade to Administrator
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/admin')}
+                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs whitespace-nowrap cursor-pointer hover:bg-amber-400 shadow-md"
+                >
+                  Open Admin Dashboard
+                </button>
               </div>
             </div>
           )}

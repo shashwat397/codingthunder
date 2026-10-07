@@ -35,6 +35,14 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onNavigate }) => {
     fetchTutorials();
   }, [selectedCategory]);
 
+  useEffect(() => {
+    const onCatalogUpdated = () => {
+      fetchTutorials();
+    };
+    window.addEventListener('catalog-updated', onCatalogUpdated);
+    return () => window.removeEventListener('catalog-updated', onCatalogUpdated);
+  }, [selectedCategory]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchTutorials();

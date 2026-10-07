@@ -327,8 +327,14 @@ class ApiService {
 
     const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ courses: Course[] }>(`/courses${qs ? `?${qs}` : ''}`);
-    if (serverRes && Array.isArray(serverRes.courses) && serverRes.courses.length > 0) {
-      return { courses: serverRes.courses.filter((c) => !deleted.has(c.id)) };
+    if (serverRes && Array.isArray(serverRes.courses)) {
+      const filtered = serverRes.courses.filter((c) => !deleted.has(c.id));
+      if (!params || Object.keys(params).length === 0) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('codingthunder_courses', JSON.stringify(filtered));
+        }
+      }
+      return { courses: filtered };
     }
 
     // 3. Fallback to catalog seed
@@ -350,22 +356,26 @@ class ApiService {
   }
 
   public async getCourse(slugOrId: string): Promise<{ course: Course | null; enrollment: Enrollment | null }> {
+    const deleted = this.getDeletedIds();
     if (isSupabaseConfigured()) {
       const sbCourses = await supabaseGetCourses(true);
       const found = sbCourses.find((c) => c.slug === slugOrId || c.id === slugOrId);
-      if (found) {
+      if (found && !deleted.has(found.id)) {
         return { course: found, enrollment: null };
       }
     }
 
     const serverRes = await this.request<{ course: Course; enrollment: Enrollment | null }>(`/courses/${slugOrId}`);
     if (serverRes && serverRes.course) {
+      if (deleted.has(serverRes.course.id)) {
+        return { course: null, enrollment: null };
+      }
       return serverRes;
     }
 
     // Check local catalog
-    const all = this.getLocalCourses();
-    const found = all.find((c) => c.slug === slugOrId || c.id === slugOrId) || all[0] || null;
+    const all = this.getLocalCourses().filter((c) => !deleted.has(c.id));
+    const found = all.find((c) => c.slug === slugOrId || c.id === slugOrId) || null;
 
     // Check enrollment in localStorage
     let enrollment: Enrollment | null = null;
@@ -487,8 +497,14 @@ class ApiService {
 
     const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ tutorials: Tutorial[] }>(`/tutorials${qs ? `?${qs}` : ''}`);
-    if (serverRes && Array.isArray(serverRes.tutorials) && serverRes.tutorials.length > 0) {
-      return { tutorials: serverRes.tutorials.filter((t) => !deleted.has(t.id)) };
+    if (serverRes && Array.isArray(serverRes.tutorials)) {
+      const filtered = serverRes.tutorials.filter((t) => !deleted.has(t.id));
+      if (!params || Object.keys(params).length === 0) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('codingthunder_tutorials', JSON.stringify(filtered));
+        }
+      }
+      return { tutorials: filtered };
     }
 
     let list = this.getLocalTutorials();
@@ -503,61 +519,67 @@ class ApiService {
   }
 
   public async getTutorial(slugOrId: string): Promise<{ tutorial: Tutorial | null }> {
+    const deleted = this.getDeletedIds();
     if (isSupabaseConfigured()) {
       const sbTutorials = await supabaseGetTutorials(true);
       const found = sbTutorials.find((t) => t.slug === slugOrId || t.id === slugOrId);
-      if (found) {
+      if (found && !deleted.has(found.id)) {
         return { tutorial: found };
       }
     }
 
     const serverRes = await this.request<{ tutorial: Tutorial }>(`/tutorials/${slugOrId}`);
-    if (serverRes && serverRes.tutorial) return serverRes;
+    if (serverRes && serverRes.tutorial) {
+      if (deleted.has(serverRes.tutorial.id)) {
+        return { tutorial: null };
+      }
+      return serverRes;
+    }
 
-    const all = this.getLocalTutorials();
-    const found = all.find((t) => t.slug === slugOrId || t.id === slugOrId) || all[0] || null;
+    const all = this.getLocalTutorials().filter((t) => !deleted.has(t.id));
+    const found = all.find((t) => t.slug === slugOrId || t.id === slugOrId) || null;
     return { tutorial: found };
   }
 
   // --- Ebooks ---
   public async getEbooks(params?: { search?: string }): Promise<{ ebooks: Ebook[] }> {
     const deleted = this.getDeletedIds();
-    const map = new Map<string, Ebook>();
 
     // 1. Supabase Cloud Store
     if (isSupabaseConfigured()) {
       try {
         const sbEbooks = await supabaseGetEbooks(false);
-        if (Array.isArray(sbEbooks)) {
-          sbEbooks.forEach((e) => {
-            if (!deleted.has(e.id)) map.set(e.id, e);
-          });
+        if (Array.isArray(sbEbooks) && sbEbooks.length > 0) {
+          let list = sbEbooks.filter((e) => !deleted.has(e.id));
+          if (params?.search) {
+            const q = params.search.toLowerCase();
+            list = list.filter((e) => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
+          }
+          return { ebooks: list };
         }
       } catch (err) {
         console.warn('Supabase getEbooks error:', err);
       }
     }
 
-    // 2. Server API fallback
+    // 2. Server API authoritative
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
     const qs = query.toString();
     const serverRes = await this.request<{ ebooks: Ebook[] }>(`/ebooks${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.ebooks)) {
-      serverRes.ebooks.forEach((e) => {
-        if (!deleted.has(e.id) && !map.has(e.id)) map.set(e.id, e);
-      });
+      const filtered = serverRes.ebooks.filter((e) => !deleted.has(e.id));
+      if (!params?.search) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('codingthunder_ebooks', JSON.stringify(filtered));
+        }
+      }
+      return { ebooks: filtered };
     }
 
-    // 3. Local persistent store (guarantees newly added ebooks are never dropped)
+    // 3. Fallback to local store only if server is unreachable
     const local = this.getLocalEbooks();
-    local.forEach((e) => {
-      if (!deleted.has(e.id)) {
-        map.set(e.id, e);
-      }
-    });
-
-    let list = Array.from(map.values());
+    let list = local.filter((e) => !deleted.has(e.id));
     if (params?.search) {
       const q = params.search.toLowerCase();
       list = list.filter((e) => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
@@ -566,6 +588,7 @@ class ApiService {
   }
 
   public async getEbook(slugOrId: string): Promise<{ ebook: Ebook | null; license: any | null }> {
+    const deleted = this.getDeletedIds();
     let found: Ebook | null = null;
     if (isSupabaseConfigured()) {
       const sbEbooks = await supabaseGetEbooks(true);
@@ -573,8 +596,19 @@ class ApiService {
     }
 
     if (!found) {
+      const serverRes = await this.request<{ ebook: Ebook; license: any | null }>(`/ebooks/${slugOrId}`);
+      if (serverRes && serverRes.ebook) {
+        found = serverRes.ebook;
+      }
+    }
+
+    if (!found) {
       const all = this.getLocalEbooks();
       found = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
+    }
+
+    if (found && deleted.has(found.id)) {
+      return { ebook: null, license: null };
     }
 
     let license: any | null = null;
@@ -1064,7 +1098,7 @@ class ApiService {
       }
     }
 
-    this.request<{ course: Course }>('/admin/courses', {
+    await this.request<{ course: Course }>('/admin/courses', {
       method: 'POST',
       body: JSON.stringify(newCourse),
     }).catch(() => {});
@@ -1072,6 +1106,7 @@ class ApiService {
     const list = [newCourse, ...this.getLocalCourses().filter((c) => c.id !== newCourse.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_courses', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'course', action: 'create', id: newCourse.id } }));
     }
     return { course: newCourse };
   }
@@ -1088,7 +1123,7 @@ class ApiService {
       }
     }
 
-    this.request<{ course: Course }>(`/admin/courses/${id}`, {
+    await this.request<{ course: Course }>(`/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }).catch(() => {});
@@ -1096,6 +1131,7 @@ class ApiService {
     const list = this.getLocalCourses().map((c) => (c.id === id ? updatedCourse : c));
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_courses', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'course', action: 'update', id } }));
     }
     return { course: updatedCourse };
   }
@@ -1110,13 +1146,14 @@ class ApiService {
       }
     }
 
-    this.request<{ success: boolean }>(`/admin/courses/${id}`, {
+    await this.request<{ success: boolean }>(`/admin/courses/${id}`, {
       method: 'DELETE',
     }).catch(() => {});
 
     const list = this.getLocalCourses().filter((c) => c.id !== id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_courses', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'course', action: 'delete', id } }));
     }
     return { success: true };
   }
@@ -1154,7 +1191,7 @@ class ApiService {
       }
     }
 
-    this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
+    await this.request<{ tutorial: Tutorial }>('/admin/tutorials', {
       method: 'POST',
       body: JSON.stringify(newTutorial),
     }).catch(() => {});
@@ -1162,6 +1199,7 @@ class ApiService {
     const list = [newTutorial, ...this.getLocalTutorials().filter((t) => t.id !== newTutorial.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_tutorials', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'tutorial', action: 'create', id: newTutorial.id } }));
     }
     return { tutorial: newTutorial };
   }
@@ -1178,7 +1216,7 @@ class ApiService {
       }
     }
 
-    this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
+    await this.request<{ tutorial: Tutorial }>(`/admin/tutorials/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }).catch(() => {});
@@ -1186,6 +1224,7 @@ class ApiService {
     const list = this.getLocalTutorials().map((t) => (t.id === id ? updatedTutorial : t));
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_tutorials', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'tutorial', action: 'update', id } }));
     }
     return { tutorial: updatedTutorial };
   }
@@ -1200,13 +1239,14 @@ class ApiService {
       }
     }
 
-    this.request<{ success: boolean }>(`/admin/tutorials/${id}`, {
+    await this.request<{ success: boolean }>(`/admin/tutorials/${id}`, {
       method: 'DELETE',
     }).catch(() => {});
 
     const list = this.getLocalTutorials().filter((t) => t.id !== id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_tutorials', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'tutorial', action: 'delete', id } }));
     }
     return { success: true };
   }
@@ -1311,10 +1351,14 @@ class ApiService {
     }
 
     // Save to Server
-    this.request<{ ebook: Ebook }>('/admin/ebooks', {
+    await this.request<{ ebook: Ebook }>('/admin/ebooks', {
       method: 'POST',
       body: JSON.stringify(newEbook),
     }).catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'ebook', action: 'create', id: newEbook.id } }));
+    }
 
     return { ebook: newEbook };
   }
@@ -1361,10 +1405,14 @@ class ApiService {
     }
 
     // Update Server
-    this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
+    await this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updatedEbook),
     }).catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'ebook', action: 'update', id } }));
+    }
 
     return { ebook: updatedEbook };
   }
@@ -1379,13 +1427,14 @@ class ApiService {
       }
     }
 
-    this.request<{ success: boolean }>(`/admin/ebooks/${id}`, {
+    await this.request<{ success: boolean }>(`/admin/ebooks/${id}`, {
       method: 'DELETE',
     }).catch(() => {});
 
     const list = this.getLocalEbooks().filter((e) => e.id !== id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { type: 'ebook', action: 'delete', id } }));
     }
     return { success: true };
   }

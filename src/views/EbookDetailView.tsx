@@ -4,6 +4,7 @@ import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { downloadExactOriginalEbook } from '../utils/downloadHelper.ts';
+import { subscribeToRealtimeEvents } from '../services/realtime.ts';
 
 interface EbookDetailViewProps {
   slugOrId: string;
@@ -13,6 +14,7 @@ interface EbookDetailViewProps {
 export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNavigate }) => {
   const { user, openCheckout } = useAuth();
   const [ebook, setEbook] = useState<Ebook | null>(null);
+  const [wasRemoved, setWasRemoved] = useState(false);
   const [license, setLicense] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -21,9 +23,11 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
     async function loadEbook() {
       try {
         const res = await api.getEbook(slugOrId);
-        if (res) {
-          setEbook(res.ebook || null);
+        if (res && res.ebook) {
+          setEbook(res.ebook);
           setLicense(res.license || null);
+        } else {
+          setEbook(null);
         }
       } catch (err) {
         console.error('Failed to load ebook:', err);
@@ -32,7 +36,22 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
       }
     }
     loadEbook();
-  }, [slugOrId, user]);
+
+    const unsubscribe = subscribeToRealtimeEvents((event) => {
+      if (event.entity === 'ebook') {
+        if (event.action === 'delete') {
+          if (event.id === ebook?.id || event.id === slugOrId) {
+            setWasRemoved(true);
+            setEbook(null);
+          }
+        } else if (event.action === 'update' && (event.id === ebook?.id || event.id === slugOrId)) {
+          loadEbook();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [slugOrId, user, ebook?.id]);
 
   const isOwned = !!license || user?.role === 'admin';
 
@@ -61,13 +80,20 @@ export const EbookDetailView: React.FC<EbookDetailViewProps> = ({ slugOrId, onNa
 
   if (!ebook) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-white mb-2">Ebook Not Found</h2>
+      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-4">
+        <h2 className="text-2xl font-bold text-white mb-2">
+          {wasRemoved ? 'Ebook Removed by Administrator' : 'Ebook Not Found'}
+        </h2>
+        <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
+          {wasRemoved
+            ? 'This ebook has just been removed from the platform by the administrator in real time.'
+            : 'The requested ebook does not exist or has been removed by the administrator.'}
+        </p>
         <button
           onClick={() => onNavigate('/ebooks')}
-          className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
+          className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow-md shadow-amber-500/20"
         >
-          Back to Ebooks
+          Return to Ebook Catalog
         </button>
       </div>
     );

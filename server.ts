@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -6,6 +7,7 @@ import { apiRouter } from './src/server/routes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.resolve(__dirname, 'data/uploads');
 
 async function bootstrap() {
   const app = express();
@@ -15,6 +17,21 @@ async function bootstrap() {
   // Body parsers
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Serve uploaded assets directly from persistent storage
+  app.get(['/data/uploads/:filename', '/uploads/:filename'], (req, res, next) => {
+    const safeName = path.basename(req.params.filename);
+    const filePath = path.resolve(UPLOADS_DIR, safeName);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const ext = path.extname(safeName).toLowerCase();
+      if (ext === '.pdf') {
+        res.setHeader('Content-Type', 'application/pdf');
+      }
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+      return res.sendFile(filePath);
+    }
+    next();
+  });
 
   // Mount API router
   app.use('/api', apiRouter);

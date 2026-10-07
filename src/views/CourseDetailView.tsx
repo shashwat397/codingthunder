@@ -5,6 +5,7 @@ import { Course, CourseLesson, Enrollment } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { CodeBlock } from '../components/common/CodeBlock.tsx';
+import { subscribeToRealtimeEvents } from '../services/realtime.ts';
 
 interface CourseDetailViewProps {
   courseSlugOrId: string;
@@ -14,6 +15,7 @@ interface CourseDetailViewProps {
 export const CourseDetailView: React.FC<CourseDetailViewProps> = ({ courseSlugOrId, onNavigate }) => {
   const { user, openAuthModal, openCheckout } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
+  const [wasRemoved, setWasRemoved] = useState(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'notes' | 'code' | 'resources'>('notes');
@@ -41,6 +43,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({ courseSlugOr
           if (res.enrollment) {
             setPlayerMode(true);
           }
+        } else {
+          setCourse(null);
         }
       } catch (err) {
         console.error('Failed to load course details:', err);
@@ -49,7 +53,22 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({ courseSlugOr
       }
     }
     loadCourse();
-  }, [courseSlugOrId, user]);
+
+    const unsubscribe = subscribeToRealtimeEvents((event) => {
+      if (event.entity === 'course') {
+        if (event.action === 'delete') {
+          if (event.id === course?.id || event.id === courseSlugOrId) {
+            setWasRemoved(true);
+            setCourse(null);
+          }
+        } else if (event.action === 'update' && (event.id === course?.id || event.id === courseSlugOrId)) {
+          loadCourse();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [courseSlugOrId, user, course?.id]);
 
   const toggleSection = (secId: string) => {
     setExpandedSections((prev) => ({ ...prev, [secId]: !prev[secId] }));
@@ -118,14 +137,20 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({ courseSlugOr
 
   if (!course) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-white mb-2">Course Not Found</h2>
-        <p className="text-slate-400 text-sm mb-4">The requested course could not be located.</p>
+      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-4">
+        <h2 className="text-2xl font-bold text-white mb-2">
+          {wasRemoved ? 'Course Removed by Administrator' : 'Course Not Found'}
+        </h2>
+        <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
+          {wasRemoved
+            ? 'This course has just been removed from the platform by the administrator in real time.'
+            : 'The requested course does not exist or has been removed by the administrator.'}
+        </p>
         <button
           onClick={() => onNavigate('/courses')}
-          className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm cursor-pointer"
+          className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow-md shadow-amber-500/20"
         >
-          Return to Catalog
+          Return to Course Catalog
         </button>
       </div>
     );

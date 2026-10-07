@@ -195,9 +195,9 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
       await saveOriginalEbookFile(file.name, file, file.name, file.type);
 
       const res = await api.uploadFile(file);
-      const safePath = (res.filePath && !res.filePath.startsWith('data:'))
+      const safePath = res.fileUrl || (res.filePath && !res.filePath.startsWith('data:')
         ? res.filePath
-        : `/api/uploads/${targetId}`;
+        : `/api/uploads/${targetId}`);
 
       setEditingEbook((prev) => ({
         ...prev,

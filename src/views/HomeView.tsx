@@ -35,6 +35,12 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
       }
     }
     loadData();
+
+    const onCatalogUpdated = () => {
+      loadData();
+    };
+    window.addEventListener('catalog-updated', onCatalogUpdated);
+    return () => window.removeEventListener('catalog-updated', onCatalogUpdated);
   }, []);
 
   return (

@@ -56,19 +56,20 @@ export function downloadBlob(blob: Blob | string, filename: string, mimeType = '
  * Always delivers the EXACT ORIGINAL FILE in the exact format uploaded by the admin.
  */
 export async function downloadExactOriginalEbook(ebook: Ebook, licenseToken = 'LIC-LICENSED'): Promise<void> {
-  const desiredFilename = ebook.downloadFileName || `${ebook.slug || 'handbook'}.pdf`;
+  const rawFilename = ebook.downloadFileName || `${ebook.slug || 'handbook'}.pdf`;
+  const desiredFilename = rawFilename.endsWith('.pdf') ? rawFilename : `${rawFilename}.pdf`;
 
-  // 1. Check IndexedDB persistent file vault for the exact original file
+  // 1. Check IndexedDB persistent file vault for the exact original file (if uploaded in this browser)
   try {
     const stored =
       (await getOriginalEbookFile(ebook.id)) ||
       (ebook.slug ? await getOriginalEbookFile(ebook.slug) : null) ||
       (ebook.downloadFileName ? await getOriginalEbookFile(ebook.downloadFileName) : null);
 
-    if (stored && stored.blob && stored.blob.size > 0) {
+    if (stored && stored.blob && stored.blob.size > 100) {
       downloadBlob(
         stored.blob,
-        stored.fileName || desiredFilename,
+        desiredFilename,
         stored.mimeType || ebook.downloadFileType || 'application/pdf'
       );
       return;
@@ -77,80 +78,91 @@ export async function downloadExactOriginalEbook(ebook: Ebook, licenseToken = 'L
     console.warn('IndexedDB file vault lookup error:', err);
   }
 
-  // 2. Check if ebook.downloadFilePath is a Base64 Data URL (data:application/pdf;base64,...)
-  if (ebook.downloadFilePath && ebook.downloadFilePath.startsWith('data:')) {
+  // 2. Fetch original uploaded binary from server endpoints
+  const candidateUrls: string[] = [];
+
+  // A. Dedicated download endpoint with license token
+  candidateUrls.push(`/api/ebooks/${ebook.id}/download?token=${encodeURIComponent(licenseToken)}`);
+
+  // B. ebook.downloadFilePath (if provided)
+  if (ebook.downloadFilePath) {
+    if (ebook.downloadFilePath.startsWith('http://') || ebook.downloadFilePath.startsWith('https://')) {
+      candidateUrls.push(ebook.downloadFilePath);
+    } else if (ebook.downloadFilePath.startsWith('/api/uploads/')) {
+      candidateUrls.push(ebook.downloadFilePath);
+    } else {
+      const baseName = ebook.downloadFilePath.split('/').pop() || '';
+      if (baseName) {
+        candidateUrls.push(`/api/uploads/${baseName}`);
+        candidateUrls.push(`/data/uploads/${baseName}`);
+      }
+    }
+  }
+
+  // C. Fallback file endpoints
+  candidateUrls.push(`/api/uploads/${ebook.id}.pdf`);
+  if (ebook.slug) {
+    candidateUrls.push(`/api/uploads/${ebook.slug}.pdf`);
+  }
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('codingthunder_auth_token') : null;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  for (const url of candidateUrls) {
     try {
-      const parts = ebook.downloadFilePath.split(',');
-      const mimeMatch = parts[0].match(/:(.*?);/);
-      const mimeType = mimeMatch ? mimeMatch[1] : (ebook.downloadFileType || 'application/pdf');
-      const base64Data = parts[1];
-      const binaryStr = atob(base64Data);
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        // CRITICAL CHECK: Ignore HTML (SPA redirects) and JSON errors to prevent corruption
+        if (!contentType.includes('text/html') && !contentType.includes('application/json')) {
+          const buffer = await res.arrayBuffer();
+          if (buffer.byteLength > 100) {
+            const bytes = new Uint8Array(buffer);
+            // Verify binary doesn't start with HTML tags or JSON
+            const firstChars = String.fromCharCode(...bytes.slice(0, 15)).trim().toLowerCase();
+            if (!firstChars.startsWith('<!doctype') && !firstChars.startsWith('<html') && !firstChars.startsWith('{')) {
+              const blob = new Blob([buffer], { type: ebook.downloadFileType || 'application/pdf' });
+              downloadBlob(blob, desiredFilename, ebook.downloadFileType || 'application/pdf');
+              return;
+            }
+          }
+        }
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  // 3. Check if ebook.downloadFilePath or ebook.downloadContent contains Base64 binary
+  const rawBase64 = ebook.downloadFilePath?.startsWith('data:')
+    ? ebook.downloadFilePath.split(',')[1]
+    : (ebook.downloadContent?.startsWith('data:')
+        ? ebook.downloadContent.split(',')[1]
+        : (ebook.downloadContent && /^[A-Za-z0-9+/=\s]+$/.test(ebook.downloadContent.trim()) && ebook.downloadContent.length > 200
+            ? ebook.downloadContent.trim()
+            : null));
+
+  if (rawBase64) {
+    try {
+      const clean = rawBase64.replace(/\s/g, '');
+      const binaryStr = atob(clean);
       const len = binaryStr.length;
       const bytes = new Uint8Array(len);
       for (let i = 0; i < len; i++) {
         bytes[i] = binaryStr.charCodeAt(i);
       }
-      const blob = new Blob([bytes], { type: mimeType });
-      downloadBlob(blob, desiredFilename, mimeType);
+      const blob = new Blob([bytes], { type: ebook.downloadFileType || 'application/pdf' });
+      downloadBlob(blob, desiredFilename, ebook.downloadFileType || 'application/pdf');
       return;
     } catch (err) {
       console.warn('Base64 decode error:', err);
     }
   }
 
-  // 3. Check if ebook.downloadFilePath is a hosted URL or API route (/api/uploads/..., http...)
-  if (
-    ebook.downloadFilePath &&
-    (ebook.downloadFilePath.startsWith('http://') ||
-      ebook.downloadFilePath.startsWith('https://') ||
-      ebook.downloadFilePath.startsWith('/'))
-  ) {
-    try {
-      const res = await fetch(ebook.downloadFilePath);
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob && blob.size > 150) {
-          downloadBlob(blob, desiredFilename, ebook.downloadFileType || 'application/pdf');
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Direct URL download error:', err);
-    }
-  }
-
-  // 4. Check if ebook.downloadContent contains Base64 or binary data
-  if (ebook.downloadContent && ebook.downloadContent.length > 50) {
-    try {
-      if (ebook.downloadContent.startsWith('data:')) {
-        const parts = ebook.downloadContent.split(',');
-        const base64Data = parts[1];
-        const binaryStr = atob(base64Data);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: ebook.downloadFileType || 'application/pdf' });
-        downloadBlob(blob, desiredFilename, ebook.downloadFileType || 'application/pdf');
-        return;
-      } else if (/^[A-Za-z0-9+/=]+$/.test(ebook.downloadContent.trim())) {
-        const binaryStr = atob(ebook.downloadContent.trim());
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: ebook.downloadFileType || 'application/pdf' });
-        downloadBlob(blob, desiredFilename, ebook.downloadFileType || 'application/pdf');
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
-  // 5. Fallback: If no file was ever uploaded by the admin for this ebook yet, generate handbook
+  // 4. Fallback: If no admin file is uploaded yet, generate a 100% valid PDF handbook
   generateEbookHandbookFile(ebook, licenseToken);
 }
 

@@ -42,6 +42,14 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavigate }) => {
     fetchCourses();
   }, [selectedCategory, selectedLevel, freeOnly, sort]);
 
+  useEffect(() => {
+    const onCatalogUpdated = () => {
+      fetchCourses();
+    };
+    window.addEventListener('catalog-updated', onCatalogUpdated);
+    return () => window.removeEventListener('catalog-updated', onCatalogUpdated);
+  }, [selectedCategory, selectedLevel, freeOnly, sort]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchCourses();
