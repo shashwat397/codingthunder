@@ -113,41 +113,6 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   return res.json({ user, token });
 });
 
-apiRouter.post('/auth/google', (req: Request, res: Response) => {
-  const { email, name, avatar } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Google email is required.' });
-  }
-
-  const cleanEmail = email.toLowerCase().trim();
-  const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
-  let rawUser = db.getUserByEmail(cleanEmail);
-
-  if (!rawUser) {
-    const allUsers = db.getUsers();
-    const role: 'student' | 'admin' = (isOwner || allUsers.length === 0) ? 'admin' : 'student';
-    const computedName = name || cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-    const computedAvatar = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`;
-
-    rawUser = db.createUser({
-      id: `usr_g_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: computedName,
-      email: cleanEmail,
-      passwordHash: hashPassword(Math.random().toString(36)),
-      role,
-      avatar: computedAvatar,
-      createdAt: new Date().toISOString(),
-    });
-  } else if (isOwner && rawUser.role !== 'admin') {
-    db.updateUserRole(rawUser.id, 'admin');
-    rawUser.role = 'admin';
-  }
-
-  const { passwordHash, ...user } = rawUser;
-  const token = createToken({ userId: user.id, email: user.email, role: user.role });
-  return res.json({ user, token });
-});
-
 apiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const user = db.getUserById(req.user!.userId);
   if (!user) {

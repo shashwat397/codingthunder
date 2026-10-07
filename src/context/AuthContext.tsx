@@ -9,7 +9,6 @@ import {
   supabaseSignOut,
   supabaseGetSession,
   supabasePromoteToAdmin,
-  supabaseSignInWithGoogle,
 } from '../services/supabase.ts';
 
 interface CheckoutItem {
@@ -25,7 +24,6 @@ interface AuthContextType {
   isSupabaseActive: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  loginWithGoogle: (email?: string, name?: string, avatar?: string) => Promise<void>;
   claimAdminRole: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -117,35 +115,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
-  const loginWithGoogle = async (email?: string, name?: string, avatar?: string) => {
-    setIsLoading(true);
-    try {
-      const emailToUse = email || 'mishrashashwat90@gmail.com';
-      const nameToUse = name || emailToUse.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-      const avatarToUse = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(emailToUse)}`;
-
-      // If Supabase is active and user didn't specify a custom mock email, try OAuth
-      if (isSupabaseActive && supabase && !email) {
-        const { error } = await supabaseSignInWithGoogle();
-        if (!error) return;
-        console.warn('Supabase Google OAuth fallback to direct session:', error);
-      }
-
-      const res = await api.loginWithGoogle(emailToUse, nameToUse, avatarToUse);
-      setUser(res.user);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('codingthunder_user', JSON.stringify(res.user));
-        if (res.user.role === 'admin') {
-          localStorage.setItem(`codingthunder_admin_${res.user.id}`, 'true');
-          localStorage.setItem('codingthunder_admin_user', 'true');
-        }
-      }
-      setIsAuthModalOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const claimAdminRole = async () => {
     if (!user) return;
     if (isSupabaseActive) {
@@ -192,7 +161,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSupabaseActive,
         login,
         register,
-        loginWithGoogle,
         claimAdminRole,
         logout,
         refreshUser,

@@ -23,8 +23,7 @@ import {
   Database,
   Copy,
   ExternalLink,
-  RefreshCw,
-  ListOrdered
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -58,25 +57,9 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
 
   const [ebookModalOpen, setEbookModalOpen] = useState(false);
   const [editingEbook, setEditingEbook] = useState<Partial<Ebook> | null>(null);
-  const [tocRawText, setTocRawText] = useState('');
   const [isUploadingEbookFile, setIsUploadingEbookFile] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const parseTocTextToChapters = (text: string) => {
-    const lines = text.split('\n').filter((l) => l.trim().length > 0);
-    if (lines.length === 0) {
-      return [{ title: 'Module 1: Foundations', page: 1 }];
-    }
-    return lines.map((line, idx) => {
-      const pageMatch = line.match(/\(Page\s*(\d+)\)/i) || line.match(/[-:]\s*page\s*(\d+)/i) || line.match(/\|\s*page\s*(\d+)/i);
-      const cleanTitle = line.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').replace(/\|\s*page\s*\d+/i, '').trim();
-      return {
-        title: cleanTitle || `Module ${idx + 1}`,
-        page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
-      };
-    });
-  };
 
   const [grantModalUser, setGrantModalUser] = useState<User | null>(null);
   const [grantCourseId, setGrantCourseId] = useState('');
@@ -287,26 +270,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     if (!editingEbook?.title || !editingEbook?.author) return;
     try {
       const isExisting = editingEbook.id && ebooks.some((item) => item.id === editingEbook.id);
-      const parsedChapters = parseTocTextToChapters(tocRawText);
-      const payload: Partial<Ebook> = {
-        ...editingEbook,
-        chapters: parsedChapters.length > 0 ? parsedChapters : (editingEbook.chapters || [{ title: 'Module 1: Foundations', page: 1 }]),
-      };
-
       let saved: Ebook;
       if (isExisting) {
-        const res = await api.updateEbook(editingEbook.id!, payload);
+        const res = await api.updateEbook(editingEbook.id!, editingEbook);
         saved = res.ebook;
       } else {
-        const res = await api.createEbook(payload);
+        const res = await api.createEbook(editingEbook);
         saved = res.ebook;
       }
       setEbookModalOpen(false);
       setEditingEbook(null);
       await loadAllAdminData();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('codingthunder_ebooks_updated'));
-      }
       setBannerNotice(`Ebook "${saved.title}" saved and published successfully.`);
     } catch (err: any) {
       alert(err.message || 'Failed to save ebook');
@@ -726,11 +700,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
             <h3 className="text-lg font-bold text-white">Ebook Store Management</h3>
             <button
               onClick={() => {
-                const initialChaps = [
-                  { title: 'Chapter 1: Foundations & Architecture', page: 1 },
-                  { title: 'Chapter 2: Data Transformation & Modeling', page: 25 },
-                  { title: 'Chapter 3: Query Optimization & Indexing', page: 60 },
-                ];
                 setEditingEbook({
                   title: '',
                   subtitle: '',
@@ -740,12 +709,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                   price: 499,
                   originalPrice: 1499,
                   coverImage: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
-                  previewSnippet: 'Chapter 1: Architecture Essentials...\n\nIn high-throughput systems, data pipelines must withstand fluctuating load...',
-                  chapters: initialChaps,
-                  features: ['PDF + ePub files', 'Lifetime updates', 'Production SQL & Python code repo'],
+                  previewSnippet: 'Chapter 1: Architecture Essentials...',
+                  chapters: [{ title: 'Chapter 1: Essentials', page: 1 }],
+                  features: ['PDF + ePub files', 'Lifetime updates'],
                   published: true,
                 });
-                setTocRawText('Chapter 1: Foundations & Architecture (Page 1)\nChapter 2: Data Transformation & Modeling (Page 25)\nChapter 3: Query Optimization & Indexing (Page 60)');
                 setEbookModalOpen(true);
               }}
               className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
@@ -1468,117 +1436,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                 </div>
               </div>
 
-              {/* 5. TABLE OF CONTENTS / CURRICULUM CHAPTERS */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <ListOrdered className="w-4 h-4 text-amber-400" />
-                      <span>Table of Contents / Curriculum Chapters *</span>
-                    </label>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      These modules appear in the store listing, Look Inside preview, and handbook download.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const current = editingEbook.chapters || [];
-                      const nextNum = current.length + 1;
-                      setEditingEbook({
-                        ...editingEbook,
-                        chapters: [...current, { title: `Module ${nextNum}: Topic Name`, page: nextNum * 15 }],
-                      });
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold cursor-pointer flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Chapter</span>
-                  </button>
-                </div>
-
-                {/* Individual Chapter Editor Rows */}
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {(editingEbook.chapters || []).map((ch, idx) => {
-                    const chapterTitle = typeof ch === 'string' ? ch : (ch.title || `Module ${idx + 1}`);
-                    const chapterPage = typeof ch === 'object' && ch.page ? ch.page : idx * 15 + 1;
-
-                    return (
-                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl bg-[#0c101c] border border-slate-800">
-                        <span className="text-slate-500 font-mono text-[11px] w-6 text-center">{idx + 1}.</span>
-                        <input
-                          type="text"
-                          value={chapterTitle}
-                          onChange={(e) => {
-                            const updated = [...(editingEbook.chapters || [])];
-                            updated[idx] = { title: e.target.value, page: chapterPage };
-                            setEditingEbook({ ...editingEbook, chapters: updated });
-                          }}
-                          placeholder="Chapter / Module Title"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-400"
-                        />
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] text-slate-500 font-mono">Pg:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            value={chapterPage}
-                            onChange={(e) => {
-                              const updated = [...(editingEbook.chapters || [])];
-                              updated[idx] = { title: chapterTitle, page: Number(e.target.value) || 1 };
-                              setEditingEbook({ ...editingEbook, chapters: updated });
-                            }}
-                            className="w-16 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white font-mono text-xs text-center"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = (editingEbook.chapters || []).filter((_, i) => i !== idx);
-                            setEditingEbook({ ...editingEbook, chapters: updated });
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-red-400 cursor-pointer"
-                          title="Remove chapter"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Multi-line fast text input / paste */}
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
-                    Or quickly paste / edit full Table of Contents as lines:
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Chapter 1: Foundations (Page 1)&#10;Chapter 2: Advanced Queries (Page 30)&#10;Chapter 3: Query Optimization (Page 65)"
-                    value={(editingEbook.chapters || [])
-                      .map((c) => typeof c === 'string' ? c : `${c.title}${c.page ? ` (Page ${c.page})` : ''}`)
-                      .join('\n')}
-                    onChange={(e) => {
-                      const lines = e.target.value.split('\n').filter((l) => l.trim().length > 0);
-                      const parsed = lines.map((line, idx) => {
-                        const pageMatch = line.match(/\(Page\s*(\d+)\)/i) || line.match(/[-:]\s*page\s*(\d+)/i);
-                        const cleanTitle = line.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').trim();
-                        return {
-                          title: cleanTitle || `Module ${idx + 1}`,
-                          page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
-                        };
-                      });
-                      setEditingEbook({ ...editingEbook, chapters: parsed });
-                    }}
-                    className="w-full p-2.5 rounded-xl bg-[#0c101c] border border-slate-800 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-              </div>
-
-              {/* 6. SAMPLE PREVIEW SNIPPET */}
+              {/* 5. SAMPLE PREVIEW SNIPPET */}
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">
-                  Sample Reading Excerpt (Excerpt shown in "Look Inside" reading tab)
+                  Sample Preview Excerpt (Teaser for "Look Inside" modal)
                 </label>
                 <textarea
                   rows={4}

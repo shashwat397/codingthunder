@@ -220,36 +220,6 @@ class ApiService {
     return { user: fallbackUser, token: fakeToken };
   }
 
-  public async loginWithGoogle(email: string, name?: string, avatar?: string): Promise<{ user: User; token: string }> {
-    const res = await this.request<{ user: User; token: string }>('/auth/google', {
-      method: 'POST',
-      body: JSON.stringify({ email, name, avatar }),
-    });
-
-    if (res && res.user) {
-      this.setToken(res.token);
-      return res;
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
-    const role: 'student' | 'admin' = (isOwner || (typeof window !== 'undefined' && localStorage.getItem('codingthunder_admin_user'))) ? 'admin' : 'student';
-    const computedName = name || cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    const computedAvatar = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`;
-
-    const fallbackUser: User = {
-      id: `usr_g_${Date.now()}`,
-      name: computedName,
-      email: cleanEmail,
-      role,
-      avatar: computedAvatar,
-      createdAt: new Date().toISOString(),
-    };
-    const fakeToken = `token_google_${Date.now()}`;
-    this.setToken(fakeToken);
-    return { user: fallbackUser, token: fakeToken };
-  }
-
   public async getMe(): Promise<{ user: User }> {
     const res = await this.request<{ user: User }>('/auth/me');
     if (res && res.user) return res;
@@ -597,51 +567,14 @@ class ApiService {
 
   public async getEbook(slugOrId: string): Promise<{ ebook: Ebook | null; license: any | null }> {
     let found: Ebook | null = null;
-
-    // 1. Supabase Cloud Store
     if (isSupabaseConfigured()) {
       const sbEbooks = await supabaseGetEbooks(true);
       found = sbEbooks.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
     }
 
-    // 2. Server API
-    if (!found) {
-      try {
-        const serverRes = await this.request<{ ebook: Ebook; license: any }>(`/ebooks/${slugOrId}`);
-        if (serverRes && serverRes.ebook) {
-          found = serverRes.ebook;
-        }
-      } catch {
-        // Continue to local storage fallback
-      }
-    }
-
-    // 3. Local persistent store
     if (!found) {
       const all = this.getLocalEbooks();
       found = all.find((e) => e.slug === slugOrId || e.id === slugOrId) || null;
-    }
-
-    // Always normalize chapters to structured array
-    if (found) {
-      if (!Array.isArray(found.chapters) || found.chapters.length === 0) {
-        found.chapters = [{ title: 'Module 1: Foundations', page: 1 }];
-      } else {
-        found.chapters = found.chapters.map((ch: any, idx: number) => {
-          if (typeof ch === 'string') {
-            const pageMatch = ch.match(/\(Page\s*(\d+)\)/i) || ch.match(/[-:]\s*page\s*(\d+)/i);
-            const cleanTitle = ch.replace(/\(Page\s*\d+\)/i, '').replace(/[-:]\s*page\s*\d+/i, '').trim();
-            return {
-              title: cleanTitle || `Module ${idx + 1}`,
-              page: pageMatch ? parseInt(pageMatch[1], 10) : (idx * 15 + 1),
-            };
-          }
-          return {
-            title: ch?.title || `Module ${idx + 1}`,
-            page: Number(ch?.page) || (idx * 15 + 1),
-          };
-        });
-      }
     }
 
     let license: any | null = null;
