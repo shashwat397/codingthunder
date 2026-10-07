@@ -1,13 +1,31 @@
 {
   "users": [
     {
-      "id": "usr_g_1791356913132_aj93",
-      "name": "Mishrashashwat90",
+      "id": "usr_admin_default",
+      "name": "Thunder Admin",
+      "email": "admin@codingthunder.demo",
+      "passwordHash": "decfccc6316fe7b428f07c1726a3835a:7ca5d139531ba9b9f6958fad8cf42a17f1bb7c17693752719af5133581b84fb86bc39c194c26f5297d177439a660842a07a244c4a5f0e125fac80fdc86a153e5",
+      "role": "admin",
+      "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=admin",
+      "createdAt": "2026-10-07T09:34:07.705Z"
+    },
+    {
+      "id": "usr_student_default",
+      "name": "Thunder Student",
+      "email": "student@codingthunder.demo",
+      "passwordHash": "8ce55f3d07090fdafc889c7c888da16d:719afdc6b5b7654736d8a7bae5e0480507df8e4f091428108c0de7cc99c6526ca27092f4c9d01c5ebad7bc31689d6e4816f6337fa0a1644df3a47606daa99434",
+      "role": "student",
+      "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=student",
+      "createdAt": "2026-10-07T09:34:07.713Z"
+    },
+    {
+      "id": "usr_owner_default",
+      "name": "Thunder Site Owner",
       "email": "mishrashashwat90@gmail.com",
-      "passwordHash": "b739774d3a5ffe9550c85be526262290:f895f50ce29c712458d78d48cba0f184fb6929254f7da1938f95f5d22062430ac665fd86b418bde909cb8fbf12a8b4f6cb258df9eda2374d2a1ff48db839453a",
+      "passwordHash": "049054181aed2eb613a131c5a90b7e80:f966cb230e48f0445591bcd44c7e01036b446d05ab04dce8464b0bded741ea6296b3e9d8c4508a244f15ff3a9fc4aaffe84760b50bce394eeaf376f0537b6fe0",
       "role": "admin",
       "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90%40gmail.com",
-      "createdAt": "2026-10-07T07:08:33.140Z"
+      "createdAt": "2026-10-07T09:34:07.721Z"
     }
   ],
   "courses": [],
@@ -31,78 +49,17 @@
       "contentMarkdown": "# Python 3 Complete Developer Reference Guide\n\nWelcome to the **Codingthunder Python 3 Reference**. Whether you are preparing for technical interviews or building backend microservices, bookmark this sheet for fast recall.\n\n---\n\n## 1. Built-in Types & Methods\n\n### Strings\nPython strings are immutable sequences of Unicode characters.\n\n```python\ntext = \"  Codingthunder Python Masterclass  \"\n\n# Trimming & Transformations\nclean = text.strip()             # \"Codingthunder Python Masterclass\"\nlower = text.lower()             # lowercase\nupper = text.upper()             # UPPERCASE\nwords = clean.split(\" \")         # ['Codingthunder', 'Python', 'Masterclass']\njoined = \" - \".join(words)       # \"Codingthunder - Python - Masterclass\"\n\n# String Formatting (f-strings)\nscore = 98.456\nprint(f\"Final Score: {score:.2f}%\") # \"Final Score: 98.46%\"\n```\n\n---\n\n## 2. Lists, Sets, and Dictionaries\n\n### List Slicing Tricks\n```python\nnums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]\n\nfirst_three = nums[:3]      # [0, 1, 2]\nlast_two    = nums[-2:]     # [8, 9]\nreverse_arr = nums[::-1]    # [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]\nevery_other = nums[::2]     # [0, 2, 4, 6, 8]\n```\n\n### Comprehensions\n```python\n# Filter even numbers and square them\nsquares = [x**2 for x in range(10) if x % 2 == 0]\n# [0, 4, 16, 36, 64]\n\n# Inverting a Dictionary\nuser_roles = {\"alice\": \"admin\", \"bob\": \"editor\", \"charlie\": \"viewer\"}\nrole_to_user = {role: user for user, role in user_roles.items()}\n```\n\n---\n\n## 3. Custom Decorators\nDecorators wrap functions to extend behavior without modifying source code.\n\n```python\nimport time\nfrom functools import wraps\n\ndef time_it(func):\n    @wraps(func)\n    def wrapper(*args, **kwargs):\n        start = time.perf_counter()\n        result = func(*args, **kwargs)\n        duration = time.perf_counter() - start\n        print(f\"[TIMING] {func.__name__} completed in {duration:.4f}s\")\n        return result\n    return wrapper\n\n@time_it\ndef compute_heavy_task(n):\n    return sum(i * i for i in range(n))\n\ncompute_heavy_task(1_000_000)\n```\n\n---\n\n## 4. File I/O with Context Managers\nAlways use context managers (`with`) to guarantee file descriptors are properly closed:\n\n```python\nimport json\n\ndata = {\"platform\": \"Codingthunder\", \"active_students\": 450000}\n\n# Writing JSON\nwith open(\"metrics.json\", \"w\", encoding=\"utf-8\") as f:\n    json.dump(data, f, indent=2)\n\n# Reading JSON\nwith open(\"metrics.json\", \"r\", encoding=\"utf-8\") as f:\n    loaded = json.load(f)\n    print(loaded[\"platform\"])\n```\n",
       "createdAt": "2026-01-12T00:00:00.000Z",
       "updatedAt": "2026-03-01T00:00:00.000Z"
-    },
-    {
-      "id": "tut_react_02",
-      "slug": "react-19-hooks-and-server-components-guide",
-      "title": "React 19 Complete Guide: Hooks, Server Components & Suspense",
-      "description": "Everything you need to know about React 19: useActionState, useOptimistic, the React Compiler, and zero-client-bundle paradigms.",
-      "category": "React",
-      "readTime": "15 min read",
-      "published": true,
-      "featured": true,
-      "views": 38900,
-      "tags": [
-        "React",
-        "Frontend",
-        "TypeScript",
-        "WebDev"
-      ],
-      "contentMarkdown": "# React 19 Complete Architecture Guide\n\nReact 19 represents the most significant evolution in React's component model since Hooks arrived in React 16.8.\n\n---\n\n## What Changed in React 19?\n\n1. **The React Compiler (Forget `useMemo` and `useCallback`)**: React now automatically optimizes re-renders at build time.\n2. **Actions & Form State**: Built-in support for async mutations and optimistic states.\n3. **`useActionState`**: Replaces boilerplate `useState` + async try/catch blocks.\n\n---\n\n## 1. Using `useActionState`\n\n```tsx\nimport { useActionState } from 'react';\n\nasync function updateProfile(previousState: any, formData: FormData) {\n  const name = formData.get('name') as string;\n  try {\n    const res = await fetch('/api/user/profile', {\n      method: 'POST',\n      body: JSON.stringify({ name }),\n    });\n    if (!res.ok) throw new Error('Update failed');\n    return { success: true, name, error: null };\n  } catch (err: any) {\n    return { success: false, name: previousState.name, error: err.message };\n  }\n}\n\nexport function ProfileForm() {\n  const [state, formAction, isPending] = useActionState(updateProfile, {\n    name: 'Thunder Student',\n    error: null,\n  });\n\n  return (\n    <form action={formAction} className=\"space-y-4\">\n      <input name=\"name\" defaultValue={state.name} />\n      <button type=\"submit\" disabled={isPending}>\n        {isPending ? 'Saving...' : 'Save Profile'}\n      </button>\n      {state.error && <p className=\"text-red-400\">{state.error}</p>}\n    </form>\n  );\n}\n```\n\n---\n\n## 2. Instant Feedback with `useOptimistic`\n\n```tsx\nimport { useOptimistic, useState } from 'react';\n\nexport function LessonUpvote({ initialCount }: { initialCount: number }) {\n  const [count, setCount] = useState(initialCount);\n  const [optimisticCount, setOptimisticCount] = useOptimistic(\n    count,\n    (current, update: number) => current + update\n  );\n\n  const handleUpvote = async () => {\n    setOptimisticCount(1); // Instantly updates UI\n    await fetch('/api/lessons/upvote', { method: 'POST' });\n    setCount(prev => prev + 1);\n  };\n\n  return (\n    <button onClick={handleUpvote} className=\"hover:text-amber-400\">\n      ⚡ {optimisticCount} Upvotes\n    </button>\n  );\n}\n```\n",
-      "createdAt": "2026-01-18T00:00:00.000Z",
-      "updatedAt": "2026-03-04T00:00:00.000Z"
-    },
-    {
-      "id": "tut_git_03",
-      "slug": "git-and-github-pro-workflow-guide",
-      "title": "Git & GitHub Pro Workflow: Rebasing, Cherry-Picking & Clean Commits",
-      "description": "Master real-world Git workflows used in top engineering teams. Learn interactive rebase, squashing, merge conflict resolution, and bisect.",
-      "category": "Tools & DevOps",
-      "readTime": "9 min read",
-      "published": true,
-      "featured": false,
-      "views": 29400,
-      "tags": [
-        "Git",
-        "DevOps",
-        "GitHub",
-        "Workflow"
-      ],
-      "contentMarkdown": "# Professional Git & GitHub Guide\n\nClean commit histories make debugging and code audits painless. Here is the modern engineer's battle-tested cheat sheet.\n\n---\n\n## 1. Interactive Rebasing\n\nNever push messy \"fixed typo\" or \"trying again\" commits to shared pull requests. Clean them up locally before pushing:\n\n```bash\n# Interactively rebase the last 3 commits\ngit rebase -i HEAD~3\n```\n\nYou will see an editor buffer:\n```text\npick 4a9f1c2 Add user authentication endpoint\nsquash 8b3e9a1 Fix linting error in auth controller\nsquash c71d2e4 Update auth test assertions\n```\n\nSave and close to merge the 3 commits into one clean, well-described atomic unit.\n\n---\n\n## 2. Finding Bugs with `git bisect`\nWhen a bug crept in somewhere over the last 100 commits, use binary search:\n\n```bash\ngit bisect start\ngit bisect bad                 # Current commit is broken\ngit bisect good v1.4.0         # v1.4.0 was working\n# Git checks out midpoint; run your test script:\nnpm test\n# Tell git:\ngit bisect good (or git bisect bad)\n# Git isolates the exact culprit commit in ~7 steps!\ngit bisect reset\n```\n",
-      "createdAt": "2026-01-25T00:00:00.000Z",
-      "updatedAt": "2026-02-28T00:00:00.000Z"
-    },
-    {
-      "id": "tut_js_04",
-      "slug": "modern-javascript-es2024-features-guide",
-      "title": "Modern JavaScript (ES2024–2026) Features You Must Know",
-      "description": "Deep dive into Promise.withResolvers, Object.groupBy, Array findLast, Temporal API, and Top-level Await.",
-      "category": "JavaScript",
-      "readTime": "10 min read",
-      "published": true,
-      "featured": true,
-      "views": 31800,
-      "tags": [
-        "JavaScript",
-        "WebDev",
-        "ESNext"
-      ],
-      "contentMarkdown": "# Modern JavaScript (ES2024–2026)\n\nJavaScript evolves every year. Here are the most impactful native features you should adopt in production code today.\n\n---\n\n## 1. Object.groupBy()\nGrouping data arrays by key no longer requires `reduce` boilerplate:\n\n```javascript\nconst courses = [\n  { title: \"React 19\", category: \"Frontend\" },\n  { title: \"Express REST\", category: \"Backend\" },\n  { title: \"Tailwind 4\", category: \"Frontend\" },\n  { title: \"PostgreSQL\", category: \"Backend\" },\n];\n\nconst grouped = Object.groupBy(courses, (course) => course.category);\n/*\n{\n  Frontend: [{ title: \"React 19\", ... }, { title: \"Tailwind 4\", ... }],\n  Backend:  [{ title: \"Express REST\", ... }, { title: \"PostgreSQL\", ... }]\n}\n*/\n```\n\n---\n\n## 2. Promise.withResolvers()\nExtracts resolve and reject callbacks cleanly for event-driven flows:\n\n```javascript\nconst { promise, resolve, reject } = Promise.withResolvers();\n\n// Listen to an external socket event\nsocket.on(\"connected\", () => resolve(\"Connected successfully!\"));\nsocket.on(\"error\", (err) => reject(err));\n\nawait promise;\n```\n",
-      "createdAt": "2026-02-05T00:00:00.000Z",
-      "updatedAt": "2026-03-01T00:00:00.000Z"
     }
   ],
   "ebooks": [],
   "siteSettings": {
     "siteName": "Codingthunder",
-    "bannerText": "⚡ Welcome to Codingthunder — Practical, high-impact coding curriculum & developer handbooks.",
+    "bannerText": "⚡ Flash Sale: Use code THUNDER2026 for an extra 20% off all masterclasses and ebooks!",
     "showBanner": true,
     "announcementUrl": "/courses",
     "featuredCourseIds": [],
     "featuredTutorialIds": [
-      "tut_py_01",
-      "tut_react_02",
-      "tut_js_04"
+      "tut_py_01"
     ],
     "featuredEbookIds": [],
     "razorpayKeyId": "rzp_test_sample_key_id",

@@ -19,6 +19,21 @@ import {
 
 const TOKEN_KEY = 'codingthunder_auth_token';
 
+// List of item IDs permanently removed by the administrator
+const REMOVED_ITEM_IDS: readonly string[] = [
+  'crs_webdev_01',
+  'crs_python_02',
+  'crs_dsa_03',
+  'crs_devops_04',
+  'crs_nextjs_05',
+  'tut_react_02',
+  'tut_git_03',
+  'tut_js_04',
+  'ebk_fullstack_01',
+  'ebk_dsa_02',
+  'ebk_typescript_03',
+];
+
 class ApiService {
   private token: string | null = null;
   private seed = getSeedData();
@@ -26,6 +41,25 @@ class ApiService {
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem(TOKEN_KEY);
+
+      // Clean up any stale removed items from client localStorage caches
+      const cleanCache = (key: string) => {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          try {
+            const arr = JSON.parse(stored);
+            if (Array.isArray(arr)) {
+              const cleaned = arr.filter((item: any) => !REMOVED_ITEM_IDS.includes(item?.id));
+              localStorage.setItem(key, JSON.stringify(cleaned));
+            }
+          } catch {
+            // ignore
+          }
+        }
+      };
+      cleanCache('codingthunder_courses');
+      cleanCache('codingthunder_tutorials');
+      cleanCache('codingthunder_ebooks');
     }
   }
 
@@ -79,18 +113,21 @@ class ApiService {
 
   // Helper to track permanently deleted entity IDs
   private getDeletedIds(): Set<string> {
+    const set = new Set<string>(REMOVED_ITEM_IDS);
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_deleted_ids');
       if (stored) {
         try {
           const arr = JSON.parse(stored);
-          if (Array.isArray(arr)) return new Set(arr);
+          if (Array.isArray(arr)) {
+            arr.forEach((id: string) => set.add(id));
+          }
         } catch {
           // ignore
         }
       }
     }
-    return new Set<string>();
+    return set;
   }
 
   private addDeletedId(id: string) {
