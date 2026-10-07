@@ -521,28 +521,43 @@ class ApiService {
 
   // --- Ebooks ---
   public async getEbooks(params?: { search?: string }): Promise<{ ebooks: Ebook[] }> {
+    const deleted = this.getDeletedIds();
+    const map = new Map<string, Ebook>();
+
+    // 1. Supabase Cloud Store
     if (isSupabaseConfigured()) {
-      let sbEbooks = await supabaseGetEbooks(false);
-      if (sbEbooks && sbEbooks.length > 0) {
-        if (params?.search) {
-          const q = params.search.toLowerCase();
-          sbEbooks = sbEbooks.filter((e) => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
+      try {
+        const sbEbooks = await supabaseGetEbooks(false);
+        if (Array.isArray(sbEbooks)) {
+          sbEbooks.forEach((e) => {
+            if (!deleted.has(e.id)) map.set(e.id, e);
+          });
         }
-        return { ebooks: sbEbooks };
+      } catch (err) {
+        console.warn('Supabase getEbooks error:', err);
       }
     }
 
+    // 2. Server API fallback
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
     const qs = query.toString();
-
-    const deleted = this.getDeletedIds();
     const serverRes = await this.request<{ ebooks: Ebook[] }>(`/ebooks${qs ? `?${qs}` : ''}`);
-    if (serverRes && Array.isArray(serverRes.ebooks) && serverRes.ebooks.length > 0) {
-      return { ebooks: serverRes.ebooks.filter((e) => !deleted.has(e.id)) };
+    if (serverRes && Array.isArray(serverRes.ebooks)) {
+      serverRes.ebooks.forEach((e) => {
+        if (!deleted.has(e.id) && !map.has(e.id)) map.set(e.id, e);
+      });
     }
 
-    let list = this.getLocalEbooks();
+    // 3. Local persistent store (guarantees newly added ebooks are never dropped)
+    const local = this.getLocalEbooks();
+    local.forEach((e) => {
+      if (!deleted.has(e.id)) {
+        map.set(e.id, e);
+      }
+    });
+
+    let list = Array.from(map.values());
     if (params?.search) {
       const q = params.search.toLowerCase();
       list = list.filter((e) => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
@@ -1197,70 +1212,160 @@ class ApiService {
   }
 
   public async getAdminEbooks(): Promise<{ ebooks: Ebook[] }> {
+    const deleted = this.getDeletedIds();
+    const map = new Map<string, Ebook>();
+
     if (isSupabaseConfigured()) {
-      const sbEbooks = await supabaseGetEbooks(true);
-      if (sbEbooks && sbEbooks.length > 0) {
-        return { ebooks: sbEbooks };
+      try {
+        const sbEbooks = await supabaseGetEbooks(true);
+        if (Array.isArray(sbEbooks)) {
+          sbEbooks.forEach((e) => {
+            if (!deleted.has(e.id)) map.set(e.id, e);
+          });
+        }
+      } catch (err) {
+        console.warn('Supabase getAdminEbooks error:', err);
       }
     }
-    const deleted = this.getDeletedIds();
+
     const serverRes = await this.request<{ ebooks: Ebook[] }>('/admin/ebooks');
     if (serverRes && Array.isArray(serverRes.ebooks)) {
-      return { ebooks: serverRes.ebooks.filter((e) => !deleted.has(e.id)) };
+      serverRes.ebooks.forEach((e) => {
+        if (!deleted.has(e.id) && !map.has(e.id)) map.set(e.id, e);
+      });
     }
-    return { ebooks: this.getLocalEbooks() };
+
+    const local = this.getLocalEbooks();
+    local.forEach((e) => {
+      if (!deleted.has(e.id)) {
+        map.set(e.id, e);
+      }
+    });
+
+    return { ebooks: Array.from(map.values()) };
   }
 
   public async createEbook(data: Partial<Ebook>): Promise<{ ebook: Ebook }> {
+    const titleSlug = data.title
+      ? data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      : `ebook-${Date.now()}`;
+
     const newEbook: Ebook = {
-      ...(data as Ebook),
-      id: data.id || `ebk_${Date.now()}`,
-      slug: data.slug || `ebook-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      id: data.id || `ebk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      slug: data.slug || titleSlug,
+      title: data.title || 'Untitled Ebook',
+      subtitle: data.subtitle || '',
+      author: data.author || 'Codingthunder',
+      description: data.description || '',
+      pages: Number(data.pages) || 200,
+      price: Number(data.price) || 499,
+      originalPrice: Number(data.originalPrice) || 1499,
+      coverImage: data.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+      previewSnippet: data.previewSnippet || '',
+      chapters: data.chapters || [{ title: 'Chapter 1: Foundations', page: 1 }],
+      features: data.features || ['Digital PDF download', 'Lifetime updates'],
+      downloadFileName: data.downloadFileName || `${titleSlug}.pdf`,
+      downloadFileSize: data.downloadFileSize || '15 MB',
+      downloadFilePath: data.downloadFilePath,
+      downloadFileType: data.downloadFileType || 'application/pdf',
+      downloadContent: data.downloadContent,
+      published: data.published !== false,
+      featured: data.featured === true,
+      salesCount: Number(data.salesCount) || 0,
+      createdAt: data.createdAt || new Date().toISOString(),
     };
 
     this.unmarkDeletedId(newEbook.id);
 
-    if (isSupabaseConfigured()) {
-      const res = await supabaseSaveEbook(newEbook);
-      if (!res.success) {
-        console.warn('Supabase save ebook error:', res.error);
+    // Save to LocalStorage first (with quota fallback)
+    const local = this.getLocalEbooks();
+    const list = [newEbook, ...local.filter((e) => e.id !== newEbook.id)];
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
+      } catch (err) {
+        console.warn('LocalStorage save quota hit, storing clean metadata:', err);
+        const cleanList = list.map(({ downloadFilePath, downloadContent, ...rest }) => ({
+          ...rest,
+          downloadFilePath: downloadFilePath?.startsWith('data:') ? `indexeddb://${rest.id}` : downloadFilePath,
+        }));
+        try {
+          localStorage.setItem('codingthunder_ebooks', JSON.stringify(cleanList));
+        } catch {
+          // ignore
+        }
       }
     }
 
+    // Save to Supabase Cloud
+    if (isSupabaseConfigured()) {
+      try {
+        const sbPayload = { ...newEbook };
+        if (sbPayload.downloadFilePath?.startsWith('data:')) {
+          sbPayload.downloadFilePath = `indexeddb://${newEbook.id}`;
+        }
+        await supabaseSaveEbook(sbPayload);
+      } catch (e) {
+        console.warn('Supabase save ebook error:', e);
+      }
+    }
+
+    // Save to Server
     this.request<{ ebook: Ebook }>('/admin/ebooks', {
       method: 'POST',
       body: JSON.stringify(newEbook),
     }).catch(() => {});
 
-    const list = [newEbook, ...this.getLocalEbooks().filter((e) => e.id !== newEbook.id)];
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
-    }
     return { ebook: newEbook };
   }
 
   public async updateEbook(id: string, data: Partial<Ebook>): Promise<{ ebook: Ebook }> {
     this.unmarkDeletedId(id);
     const existing = this.getLocalEbooks().find((e) => e.id === id) || (data as Ebook);
-    const updatedEbook: Ebook = { ...existing, ...data };
+    const updatedEbook: Ebook = { ...existing, ...data, id };
 
-    if (isSupabaseConfigured()) {
-      const res = await supabaseSaveEbook(updatedEbook);
-      if (!res.success) {
-        console.warn('Supabase update ebook error:', res.error);
+    // Update LocalStorage (upsert)
+    const local = this.getLocalEbooks();
+    const list = local.some((e) => e.id === id)
+      ? local.map((e) => (e.id === id ? updatedEbook : e))
+      : [updatedEbook, ...local];
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
+      } catch (err) {
+        console.warn('LocalStorage update quota hit, storing clean metadata:', err);
+        const cleanList = list.map(({ downloadFilePath, downloadContent, ...rest }) => ({
+          ...rest,
+          downloadFilePath: downloadFilePath?.startsWith('data:') ? `indexeddb://${id}` : downloadFilePath,
+        }));
+        try {
+          localStorage.setItem('codingthunder_ebooks', JSON.stringify(cleanList));
+        } catch {
+          // ignore
+        }
       }
     }
 
+    // Update Supabase Cloud
+    if (isSupabaseConfigured()) {
+      try {
+        const sbPayload = { ...updatedEbook };
+        if (sbPayload.downloadFilePath?.startsWith('data:')) {
+          sbPayload.downloadFilePath = `indexeddb://${id}`;
+        }
+        await supabaseSaveEbook(sbPayload);
+      } catch (e) {
+        console.warn('Supabase update ebook error:', e);
+      }
+    }
+
+    // Update Server
     this.request<{ ebook: Ebook }>(`/admin/ebooks/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(updatedEbook),
     }).catch(() => {});
 
-    const list = this.getLocalEbooks().map((e) => (e.id === id ? updatedEbook : e));
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('codingthunder_ebooks', JSON.stringify(list));
-    }
     return { ebook: updatedEbook };
   }
 

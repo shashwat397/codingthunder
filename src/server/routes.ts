@@ -738,7 +738,7 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
   const slug = body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
   const newEbook: Ebook = {
-    id: `ebk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    id: body.id || `ebk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     slug,
     title: body.title,
     subtitle: body.subtitle || '',
@@ -755,7 +755,7 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
     downloadFileSize: body.downloadFileSize || '15 MB',
     downloadFilePath: body.downloadFilePath || undefined,
     downloadFileType: body.downloadFileType || undefined,
-    downloadContent: body.downloadContent || 'Full digital content bundle for ' + body.title,
+    downloadContent: body.downloadContent || undefined,
     published: body.published !== false,
     featured: body.featured === true,
     salesCount: 0,
@@ -767,8 +767,35 @@ apiRouter.post('/admin/ebooks', requireAdmin, (req: Request, res: Response) => {
 });
 
 apiRouter.put('/admin/ebooks/:id', requireAdmin, (req: Request, res: Response) => {
-  const updated = db.updateEbook(req.params.id, req.body);
-  if (!updated) return res.status(404).json({ error: 'Ebook not found.' });
+  let updated = db.updateEbook(req.params.id, req.body);
+  if (!updated) {
+    const slug = req.body.slug || (req.body.title ? req.body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : `ebook-${Date.now()}`);
+    const newEbook: Ebook = {
+      id: req.params.id,
+      slug,
+      title: req.body.title || 'Untitled Ebook',
+      subtitle: req.body.subtitle || '',
+      author: req.body.author || 'Codingthunder',
+      description: req.body.description || '',
+      pages: Number(req.body.pages) || 200,
+      price: Number(req.body.price) || 299,
+      originalPrice: Number(req.body.originalPrice) || 899,
+      coverImage: req.body.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+      previewSnippet: req.body.previewSnippet || '',
+      chapters: req.body.chapters || [{ title: 'Chapter 1: Foundations', page: 1 }],
+      features: req.body.features || ['Digital PDF download', 'Lifetime updates'],
+      downloadFileName: req.body.downloadFileName || `${slug}.pdf`,
+      downloadFileSize: req.body.downloadFileSize || '15 MB',
+      downloadFilePath: req.body.downloadFilePath || undefined,
+      downloadFileType: req.body.downloadFileType || undefined,
+      downloadContent: req.body.downloadContent || undefined,
+      published: req.body.published !== false,
+      featured: req.body.featured === true,
+      salesCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    updated = db.createEbook(newEbook);
+  }
   return res.json({ ebook: updated });
 });
 

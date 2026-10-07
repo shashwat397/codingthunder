@@ -185,25 +185,29 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     setIsUploadingEbookFile(true);
     setUploadError(null);
     try {
-      const res = await api.uploadFile(file);
       const targetId = editingEbook?.id || `ebk_${Date.now()}`;
       
-      // Store exact raw binary file in client IndexedDB file vault
-      await saveOriginalEbookFile(targetId, file, res.fileName, res.mimeType, editingEbook?.slug);
+      // Store exact raw binary file in client IndexedDB file vault (unlimited storage)
+      await saveOriginalEbookFile(targetId, file, file.name, file.type, editingEbook?.slug);
       if (editingEbook?.slug) {
-        await saveOriginalEbookFile(editingEbook.slug, file, res.fileName, res.mimeType);
+        await saveOriginalEbookFile(editingEbook.slug, file, file.name, file.type);
       }
-      await saveOriginalEbookFile(res.fileName, file, res.fileName, res.mimeType);
+      await saveOriginalEbookFile(file.name, file, file.name, file.type);
+
+      const res = await api.uploadFile(file);
+      const safePath = (res.filePath && !res.filePath.startsWith('data:'))
+        ? res.filePath
+        : `/api/uploads/${targetId}`;
 
       setEditingEbook((prev) => ({
         ...prev,
         id: prev?.id || targetId,
-        downloadFileName: res.fileName,
-        downloadFilePath: res.filePath,
-        downloadFileSize: res.fileSize,
-        downloadFileType: res.mimeType,
+        downloadFileName: file.name,
+        downloadFilePath: safePath,
+        downloadFileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+        downloadFileType: file.type || 'application/pdf',
       }));
-      setBannerNotice(`Uploaded digital package: ${res.fileName} (${res.fileSize})`);
+      setBannerNotice(`Uploaded digital package: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
     } catch (err: any) {
       setUploadError(err.message || 'Failed to upload ebook file');
     } finally {
@@ -217,15 +221,46 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     setIsUploadingCover(true);
     setUploadError(null);
     try {
-      const res = await api.uploadFile(file);
-      setEditingEbook((prev) => ({
-        ...prev,
-        coverImage: res.fileUrl,
-      }));
-      setBannerNotice(`Uploaded cover image: ${res.fileName}`);
+      // Compress cover image on client canvas to keep it lightweight (~40KB)
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressedUrl = canvas.toDataURL('image/jpeg', 0.85);
+            setEditingEbook((prev) => ({
+              ...prev,
+              coverImage: compressedUrl,
+            }));
+            setBannerNotice(`Uploaded and optimized cover image: ${file.name}`);
+          }
+          setIsUploadingCover(false);
+        };
+        img.onerror = () => {
+          setIsUploadingCover(false);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
     } catch (err: any) {
       setUploadError(err.message || 'Failed to upload cover image');
-    } finally {
       setIsUploadingCover(false);
     }
   };
@@ -234,17 +269,21 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     e.preventDefault();
     if (!editingEbook?.title || !editingEbook?.author) return;
     try {
-      if (editingEbook.id) {
-        await api.updateEbook(editingEbook.id, editingEbook);
+      const isExisting = editingEbook.id && ebooks.some((item) => item.id === editingEbook.id);
+      let saved: Ebook;
+      if (isExisting) {
+        const res = await api.updateEbook(editingEbook.id!, editingEbook);
+        saved = res.ebook;
       } else {
-        await api.createEbook(editingEbook);
+        const res = await api.createEbook(editingEbook);
+        saved = res.ebook;
       }
       setEbookModalOpen(false);
       setEditingEbook(null);
       await loadAllAdminData();
-      setBannerNotice('Ebook package and store listing saved successfully.');
+      setBannerNotice(`Ebook "${saved.title}" saved and published successfully.`);
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'Failed to save ebook');
     }
   };
 
