@@ -107,8 +107,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogle = async (googleData?: { email?: string; name?: string; avatar?: string }) => {
     setIsLoading(true);
     try {
-      const email = googleData?.email || 'mishrashashwat90@gmail.com';
-      const isOwner = email.toLowerCase() === 'mishrashashwat90@gmail.com';
+      const email = googleData?.email?.toLowerCase().trim();
+      if (!email) {
+        throw new Error('Google account email is required.');
+      }
+      const isOwner = email === 'mishrashashwat90@gmail.com';
       const name = googleData?.name || (isOwner ? 'Shashwat Mishra' : email.split('@')[0]);
       const avatar = googleData?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(email)}`;
 
@@ -142,6 +145,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const claimAdminRole = async () => {
     if (!user) return;
+    if (user.email?.toLowerCase().trim() !== 'mishrashashwat90@gmail.com') {
+      throw new Error('Admin privileges are strictly restricted to mishrashashwat90@gmail.com');
+    }
     if (isSupabaseActive) {
       await supabasePromoteToAdmin(user.id);
     }

@@ -11,15 +11,26 @@ export const apiRouter = Router();
 // Public route to serve uploaded assets from persistent storage
 apiRouter.get('/uploads/:filename', (req: Request, res: Response) => {
   const safeName = path.basename(req.params.filename);
-  const filePath = path.resolve(UPLOADS_DIR, safeName);
+  let filePath = path.resolve(UPLOADS_DIR, safeName);
+  if (!fs.existsSync(filePath)) {
+    // Check if filename matches any ebook id, slug, or stored filename
+    if (fs.existsSync(UPLOADS_DIR)) {
+      const files = fs.readdirSync(UPLOADS_DIR);
+      const matched = files.find(f => f.includes(safeName) || f.endsWith(safeName));
+      if (matched) {
+        filePath = path.resolve(UPLOADS_DIR, matched);
+      }
+    }
+  }
+
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'Uploaded file not found.' });
   }
-  const ext = path.extname(safeName).toLowerCase();
+  const ext = path.extname(filePath).toLowerCase();
   if (ext === '.pdf') {
     res.setHeader('Content-Type', 'application/pdf');
   }
-  res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName.endsWith('.pdf') ? safeName : safeName + '.pdf'}"`);
   return res.sendFile(filePath);
 });
 
@@ -50,17 +61,18 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
-// Middleware: Require admin role
+// Middleware: Require admin role (strictly restricted ONLY to mishrashashwat90@gmail.com)
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  if (req.user && req.user.role === 'admin') {
+  if (
+    req.user &&
+    req.user.role === 'admin' &&
+    req.user.email.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
+  ) {
     return next();
   }
-  const authHeader = req.headers.authorization;
-  if (authHeader && (authHeader.includes('admin') || authHeader.includes('ThunderDemo'))) {
-    req.user = { userId: 'usr_admin_default', email: 'admin@codingthunder.demo', role: 'admin', exp: Date.now() + 86400000 };
-    return next();
-  }
-  return res.status(403).json({ error: 'Access denied: Administrator privileges required.' });
+  return res.status(403).json({
+    error: 'Access denied: Administrator privileges are strictly restricted to mishrashashwat90@gmail.com.',
+  });
 }
 
 apiRouter.use(authenticate);
@@ -79,22 +91,22 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
   }
 
-  const existing = db.getUserByEmail(email);
+  const cleanEmail = email.toLowerCase().trim();
+  const existing = db.getUserByEmail(cleanEmail);
   if (existing) {
     return res.status(409).json({ error: 'An account with this email address already exists.' });
   }
 
-  const allUsers = db.getUsers();
-  // If this is the first registered user, grant admin role
-  const role: 'student' | 'admin' = allUsers.length === 0 ? 'admin' : 'student';
+  // Admin privileges are strictly restricted ONLY to mishrashashwat90@gmail.com
+  const role: 'student' | 'admin' = cleanEmail === 'mishrashashwat90@gmail.com' ? 'admin' : 'student';
 
   const user = db.createUser({
     id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     name,
-    email: email.toLowerCase().trim(),
+    email: cleanEmail,
     passwordHash: hashPassword(password),
     role,
-    avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(email)}`,
+    avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
     createdAt: new Date().toISOString(),
   });
 
@@ -108,7 +120,8 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
 
-  const rawUser = db.getUserByEmail(email);
+  const cleanEmail = email.toLowerCase().trim();
+  const rawUser = db.getUserByEmail(cleanEmail);
   if (!rawUser) {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -116,6 +129,16 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   const isValid = verifyPassword(password, rawUser.passwordHash);
   if (!isValid) {
     return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+
+  // Enforce strict admin role restriction
+  const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
+  if (rawUser.role === 'admin' && !isOwner) {
+    db.updateUser(rawUser.id, { role: 'student' });
+    rawUser.role = 'student';
+  } else if (rawUser.role !== 'admin' && isOwner) {
+    db.updateUser(rawUser.id, { role: 'admin' });
+    rawUser.role = 'admin';
   }
 
   const { passwordHash, ...user } = rawUser;
@@ -132,13 +155,10 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
 
   const cleanEmail = String(email).toLowerCase().trim();
   let rawUser = db.getUserByEmail(cleanEmail);
+  const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
+  const role: 'student' | 'admin' = isOwner ? 'admin' : 'student';
 
   if (!rawUser) {
-    // Determine role (the designated owner is always admin)
-    const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
-    const allUsers = db.getUsers();
-    const role: 'student' | 'admin' = (isOwner || allUsers.length === 0) ? 'admin' : 'student';
-
     db.createUser({
       id: `usr_g_${googleId || Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: name || (isOwner ? 'Shashwat Mishra' : cleanEmail.split('@')[0]),
@@ -150,14 +170,13 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
     });
     rawUser = db.getUserByEmail(cleanEmail);
   } else {
-    // If user already exists, update name or avatar if provided
-    if (name || avatar) {
-      db.updateUser(rawUser.id, {
-        ...(name && (!rawUser.name || rawUser.name === 'Thunder Site Owner') ? { name } : {}),
-        ...(avatar ? { avatar } : {}),
-      });
-      rawUser = db.getUserByEmail(cleanEmail);
-    }
+    // Synchronize role and metadata
+    db.updateUser(rawUser.id, {
+      role,
+      ...(name && (!rawUser.name || rawUser.name === 'Thunder Site Owner') ? { name } : {}),
+      ...(avatar ? { avatar } : {}),
+    });
+    rawUser = db.getUserByEmail(cleanEmail);
   }
 
   if (!rawUser) {
@@ -436,8 +455,27 @@ apiRouter.get('/ebooks/:id/download', (req: AuthenticatedRequest, res: Response)
     return res.sendFile(physicalPath);
   }
 
+  // If stored in database as Base64 data (e.g. from admin dashboard upload)
+  const rawBase64 = ebook.downloadContent || (ebook.downloadFilePath?.startsWith('data:') ? ebook.downloadFilePath : null);
+  if (rawBase64) {
+    try {
+      const base64Data = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
+      const buffer = Buffer.from(base64Data, 'base64');
+      if (buffer && buffer.length > 50) {
+        const targetFilename = ebook.downloadFileName || `${ebook.slug || 'ebook'}.pdf`;
+        const safeFilename = targetFilename.endsWith('.pdf') ? targetFilename : `${targetFilename}.pdf`;
+        res.setHeader('Content-Type', ebook.downloadFileType || 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Length', String(buffer.length));
+        return res.send(buffer);
+      }
+    } catch (err) {
+      console.error('Error decoding base64 ebook file:', err);
+    }
+  }
+
   // If no physical file was uploaded yet, return 404 JSON (do NOT send corrupt plain text as a PDF)
-  return res.status(404).json({ error: 'No physical ebook file uploaded yet for this publication.' });
+  return res.status(404).json({ error: 'No original PDF file uploaded yet for this ebook by the administrator.' });
 });
 
 // ==========================================

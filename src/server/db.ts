@@ -37,41 +37,18 @@ class Database {
     if (!this.data.users) {
       this.data.users = [];
     }
-    const adminEmail = 'admin@codingthunder.demo';
-    const studentEmail = 'student@codingthunder.demo';
     const ownerEmail = 'mishrashashwat90@gmail.com';
 
     let changed = false;
-    if (!this.data.users.some(u => u.email.toLowerCase() === adminEmail.toLowerCase())) {
-      this.data.users.push({
-        id: 'usr_admin_default',
-        name: 'Thunder Admin',
-        email: adminEmail,
-        passwordHash: hashPassword('ThunderDemo!2026'),
-        role: 'admin',
-        avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=admin',
-        createdAt: new Date().toISOString(),
-      });
-      changed = true;
-    }
-
-    if (!this.data.users.some(u => u.email.toLowerCase() === studentEmail.toLowerCase())) {
-      this.data.users.push({
-        id: 'usr_student_default',
-        name: 'Thunder Student',
-        email: studentEmail,
-        passwordHash: hashPassword('ThunderStudent!2026'),
-        role: 'student',
-        avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=student',
-        createdAt: new Date().toISOString(),
-      });
-      changed = true;
-    }
+    // Remove any legacy demo accounts
+    this.data.users = this.data.users.filter(
+      (u) => u.email.toLowerCase() !== 'student@codingthunder.demo' && u.email.toLowerCase() !== 'admin@codingthunder.demo'
+    );
 
     if (!this.data.users.some(u => u.email.toLowerCase() === ownerEmail.toLowerCase())) {
       this.data.users.push({
         id: 'usr_owner_default',
-        name: 'Thunder Site Owner',
+        name: 'Shashwat Mishra',
         email: ownerEmail,
         passwordHash: hashPassword('ThunderDemo!2026'),
         role: 'admin',

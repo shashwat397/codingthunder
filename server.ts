@@ -61,9 +61,8 @@ async function bootstrap() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Codingthunder] Server listening on port ${PORT}`);
-    console.log(`[Codingthunder] Demo Admin: admin@codingthunder.demo / ThunderDemo!2026`);
-    console.log(`[Codingthunder] Demo Student: student@codingthunder.demo / ThunderStudent!2026`);
+    console.log(`[Codingthunder] Production server listening on port ${PORT}`);
+    console.log(`[Codingthunder] Verified Admin: mishrashashwat90@gmail.com`);
   });
 }
 

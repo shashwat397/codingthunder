@@ -1,163 +1,78 @@
-// Realtime Synchronization Service for Codingthunder
-// Supports Server-Sent Events (SSE), Web BroadcastChannel, and localStorage cross-tab signals
+export type RealtimeEntity = 'course' | 'tutorial' | 'ebook' | 'user' | 'order' | 'enrollment' | 'setting';
+export type RealtimeAction = 'create' | 'update' | 'delete' | 'refresh';
 
 export interface RealtimeEvent {
-  type: 'course_added' | 'course_updated' | 'course_deleted' | 'ebook_added' | 'ebook_updated' | 'ebook_deleted' | 'ping' | 'connected';
-  entity: 'course' | 'ebook' | 'system';
-  action: 'create' | 'update' | 'delete' | 'connect';
+  entity: RealtimeEntity;
+  action: RealtimeAction;
   id?: string;
-  item?: any;
-  timestamp: string;
+  payload?: any;
+  timestamp?: number;
 }
 
-type RealtimeListener = (event: RealtimeEvent) => void;
+type EventCallback = (event: RealtimeEvent) => void;
 
 class RealtimeService {
-  private listeners: Set<RealtimeListener> = new Set();
-  private eventSource: EventSource | null = null;
-  private broadcastChannel: BroadcastChannel | null = null;
-  private reconnectTimeout: any = null;
-  private isConnecting = false;
+  private listeners: Set<EventCallback> = new Set();
+  private channel: BroadcastChannel | null = null;
 
   constructor() {
-    if (typeof window !== 'undefined') {
-      this.initBroadcastChannel();
-      this.initStorageListener();
-      this.connectSSE();
-    }
-  }
-
-  private initBroadcastChannel() {
-    try {
-      if ('BroadcastChannel' in window) {
-        this.broadcastChannel = new BroadcastChannel('codingthunder_realtime_channel');
-        this.broadcastChannel.onmessage = (e) => {
-          if (e.data && e.data.entity) {
-            this.notifyListeners(e.data);
+    if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+      try {
+        this.channel = new BroadcastChannel('codingthunder_realtime_events');
+        this.channel.onmessage = (messageEvent) => {
+          if (messageEvent.data && typeof messageEvent.data === 'object') {
+            this.notifyListeners(messageEvent.data as RealtimeEvent);
           }
         };
+      } catch (e) {
+        // Fallback gracefully if BroadcastChannel fails in restricted contexts
+        console.warn('BroadcastChannel not available, using local event dispatcher');
       }
-    } catch (err) {
-      console.warn('BroadcastChannel not available:', err);
-    }
-  }
-
-  private initStorageListener() {
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'codingthunder_realtime_event' && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          this.notifyListeners(parsed);
-        } catch {
-          // ignore
-        }
-      }
-    });
-  }
-
-  private connectSSE() {
-    if (this.isConnecting || (this.eventSource && this.eventSource.readyState === EventSource.OPEN)) {
-      return;
-    }
-
-    this.isConnecting = true;
-
-    try {
-      if (this.eventSource) {
-        this.eventSource.close();
-      }
-
-      this.eventSource = new EventSource('/api/realtime/events');
-
-      this.eventSource.onopen = () => {
-        this.isConnecting = false;
-      };
-
-      this.eventSource.onmessage = (event) => {
-        try {
-          const data: RealtimeEvent = JSON.parse(event.data);
-          if (data && data.entity) {
-            this.notifyListeners(data);
-          }
-        } catch (err) {
-          // heartbeat or non-json message
-        }
-      };
-
-      this.eventSource.onerror = () => {
-        this.isConnecting = false;
-        if (this.eventSource) {
-          this.eventSource.close();
-          this.eventSource = null;
-        }
-        // Retry connection in 3 seconds
-        if (!this.reconnectTimeout) {
-          this.reconnectTimeout = setTimeout(() => {
-            this.reconnectTimeout = null;
-            this.connectSSE();
-          }, 3000);
-        }
-      };
-    } catch (err) {
-      this.isConnecting = false;
     }
   }
 
   private notifyListeners(event: RealtimeEvent) {
-    this.listeners.forEach((listener) => {
+    this.listeners.forEach((callback) => {
       try {
-        listener(event);
+        callback(event);
       } catch (err) {
-        console.error('Error in realtime listener callback:', err);
+        console.error('Error in realtime event listener:', err);
       }
     });
   }
 
-  public subscribe(listener: RealtimeListener): () => void {
-    this.listeners.add(listener);
-    // Ensure SSE is active
-    if (!this.eventSource || this.eventSource.readyState === EventSource.CLOSED) {
-      this.connectSSE();
-    }
+  public subscribe(callback: EventCallback): () => void {
+    this.listeners.add(callback);
     return () => {
-      this.listeners.delete(listener);
+      this.listeners.delete(callback);
     };
   }
 
-  public broadcast(event: Omit<RealtimeEvent, 'timestamp'>) {
+  public emit(event: RealtimeEvent) {
     const fullEvent: RealtimeEvent = {
       ...event,
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
     };
-
-    // 1. Notify local in-memory listeners
+    // Notify in-process listeners
     this.notifyListeners(fullEvent);
 
-    // 2. Broadcast across tabs via BroadcastChannel
-    if (this.broadcastChannel) {
+    // Broadcast to other tabs/windows
+    if (this.channel) {
       try {
-        this.broadcastChannel.postMessage(fullEvent);
-      } catch (err) {
-        console.warn('Error broadcasting message:', err);
+        this.channel.postMessage(fullEvent);
+      } catch (e) {
+        // Ignore channel post errors
       }
-    }
-
-    // 3. Fallback broadcast via localStorage for older browsers or if channel fails
-    try {
-      localStorage.setItem('codingthunder_realtime_event', JSON.stringify(fullEvent));
-      localStorage.removeItem('codingthunder_realtime_event');
-    } catch {
-      // ignore
     }
   }
 }
 
 export const realtimeService = new RealtimeService();
 
-export function subscribeToRealtimeEvents(listener: RealtimeListener): () => void {
-  return realtimeService.subscribe(listener);
+export function subscribeToRealtimeEvents(callback: EventCallback): () => void {
+  return realtimeService.subscribe(callback);
 }
 
-export function broadcastRealtimeAction(event: Omit<RealtimeEvent, 'timestamp'>) {
-  realtimeService.broadcast(event);
+export function emitRealtimeEvent(event: RealtimeEvent): void {
+  realtimeService.emit(event);
 }

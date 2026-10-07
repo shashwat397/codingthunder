@@ -243,13 +243,14 @@ class ApiService {
     }
 
     // Client-side fallback authentication
-    const role: 'student' | 'admin' = localStorage.getItem('codingthunder_admin_user') ? 'admin' : 'student';
+    const cleanEmail = email.trim().toLowerCase();
+    const role: 'student' | 'admin' = cleanEmail === 'mishrashashwat90@gmail.com' ? 'admin' : 'student';
     const fallbackUser: User = {
       id: `usr_${Date.now()}`,
-      name: email.split('@')[0],
-      email,
+      name: cleanEmail === 'mishrashashwat90@gmail.com' ? 'Shashwat Mishra' : email.split('@')[0],
+      email: cleanEmail,
       role,
-      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(email)}`,
+      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
       createdAt: new Date().toISOString(),
     };
     const fakeToken = `token_${Date.now()}`;
@@ -312,7 +313,7 @@ class ApiService {
         id: 'usr_me',
         name: data.name || 'Developer',
         email: 'user@codingthunder.dev',
-        role: 'admin',
+        role: 'student',
         avatar: data.avatar || 'https://api.dicebear.com/7.x/identicon/svg?seed=dev',
         createdAt: new Date().toISOString(),
       },

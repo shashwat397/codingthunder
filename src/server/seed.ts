@@ -7,26 +7,8 @@ const DEMO_STUDENT_HASH = '9cb9da61770799995b7f255bddd604f1:2989976295e43ecc2c80
 export function getSeedData() {
   const users: (User & { passwordHash: string })[] = [
     {
-      id: 'usr_admin_default',
-      name: 'Thunder Admin',
-      email: 'admin@codingthunder.demo',
-      passwordHash: DEMO_ADMIN_HASH,
-      role: 'admin',
-      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=admin',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'usr_student_default',
-      name: 'Thunder Student',
-      email: 'student@codingthunder.demo',
-      passwordHash: DEMO_STUDENT_HASH,
-      role: 'student',
-      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=student',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
       id: 'usr_owner_default',
-      name: 'Thunder Site Owner',
+      name: 'Shashwat Mishra',
       email: 'mishrashashwat90@gmail.com',
       passwordHash: DEMO_ADMIN_HASH,
       role: 'admin',

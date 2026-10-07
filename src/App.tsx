@@ -80,9 +80,12 @@ function AppContent() {
       return <EbookDetailView slugOrId={slugOrId} onNavigate={navigate} />;
     }
 
-    // 4. Login Route (supports /login and /login?redirectUrl=...)
+    // 4. Auth Routes (supports /login, /signup, /register and /login?redirectUrl=...)
     if (currentPath === '/login' || currentPath.startsWith('/login?') || currentPath.startsWith('/login/')) {
-      return <LoginView onNavigate={navigate} />;
+      return <LoginView initialMode="login" onNavigate={navigate} />;
+    }
+    if (currentPath === '/signup' || currentPath.startsWith('/signup?') || currentPath === '/register' || currentPath.startsWith('/register?')) {
+      return <LoginView initialMode="register" onNavigate={navigate} />;
     }
 
     // 5. Exact Routes

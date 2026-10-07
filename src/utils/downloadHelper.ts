@@ -162,8 +162,10 @@ export async function downloadExactOriginalEbook(ebook: Ebook, licenseToken = 'L
     }
   }
 
-  // 4. Fallback: If no admin file is uploaded yet, generate a 100% valid PDF handbook
-  generateEbookHandbookFile(ebook, licenseToken);
+  // 4. If no admin file is available, inform the user cleanly instead of generating a dummy placeholder PDF
+  alert(
+    `The digital PDF for "${ebook.title}" has not been uploaded by the administrator yet. Please check back shortly or reach out to support@codingthunder.dev.`
+  );
 }
 
 /**

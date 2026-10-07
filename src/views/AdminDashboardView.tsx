@@ -68,18 +68,24 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const [schemaCopied, setSchemaCopied] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
-  // Check admin authorization
-  if (user && user.role !== 'admin') {
+  // Strict admin authorization check - strictly restricted ONLY to mishrashashwat90@gmail.com
+  const isStrictAdmin = Boolean(
+    user &&
+    user.role === 'admin' &&
+    user.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
+  );
+
+  if (!isStrictAdmin) {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
         <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
         <p className="text-slate-400 text-sm mb-4">
-          You must be an administrator to access the Codingthunder Admin Suite.
+          Administrator privileges are strictly restricted to mishrashashwat90@gmail.com.
         </p>
         <button
           onClick={() => onNavigate('/')}
-          className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
+          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
         >
           Return Home
         </button>
@@ -199,6 +205,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
         ? res.filePath
         : `/api/uploads/${targetId}`);
 
+      // Also read file as data URL to store in downloadContent for immediate resilient access
+      const reader = new FileReader();
+      const base64Data = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve((reader.result as string) || '');
+        reader.readAsDataURL(file);
+      });
+
       setEditingEbook((prev) => ({
         ...prev,
         id: prev?.id || targetId,
@@ -206,6 +219,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
         downloadFilePath: safePath,
         downloadFileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
         downloadFileType: file.type || 'application/pdf',
+        downloadContent: base64Data || undefined,
       }));
       setBannerNotice(`Uploaded digital package: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
     } catch (err: any) {
