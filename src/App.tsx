@@ -18,6 +18,7 @@ import { EbooksView } from './views/EbooksView.tsx';
 import { EbookDetailView } from './views/EbookDetailView.tsx';
 import { StudentDashboardView } from './views/StudentDashboardView.tsx';
 import { AdminDashboardView } from './views/AdminDashboardView.tsx';
+import { LoginView } from './views/LoginView.tsx';
 import { StaticPages } from './views/StaticPages.tsx';
 import { api } from './services/api.ts';
 import { SiteSettings } from './types/index.ts';
@@ -79,7 +80,12 @@ function AppContent() {
       return <EbookDetailView slugOrId={slugOrId} onNavigate={navigate} />;
     }
 
-    // 4. Exact Routes
+    // 4. Login Route (supports /login and /login?redirectUrl=...)
+    if (currentPath === '/login' || currentPath.startsWith('/login?') || currentPath.startsWith('/login/')) {
+      return <LoginView onNavigate={navigate} />;
+    }
+
+    // 5. Exact Routes
     switch (currentPath) {
       case '/':
         return <HomeView onNavigate={navigate} />;

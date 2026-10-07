@@ -123,6 +123,52 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   return res.json({ user, token });
 });
 
+// Google Account Sign-In / OAuth endpoint
+apiRouter.post('/auth/google', (req: Request, res: Response) => {
+  const { email, name, avatar, googleId } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Google account email is required.' });
+  }
+
+  const cleanEmail = String(email).toLowerCase().trim();
+  let rawUser = db.getUserByEmail(cleanEmail);
+
+  if (!rawUser) {
+    // Determine role (the designated owner is always admin)
+    const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
+    const allUsers = db.getUsers();
+    const role: 'student' | 'admin' = (isOwner || allUsers.length === 0) ? 'admin' : 'student';
+
+    db.createUser({
+      id: `usr_g_${googleId || Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: name || (isOwner ? 'Shashwat Mishra' : cleanEmail.split('@')[0]),
+      email: cleanEmail,
+      passwordHash: hashPassword(`google_oauth_sso_${Date.now()}`),
+      role,
+      avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      createdAt: new Date().toISOString(),
+    });
+    rawUser = db.getUserByEmail(cleanEmail);
+  } else {
+    // If user already exists, update name or avatar if provided
+    if (name || avatar) {
+      db.updateUser(rawUser.id, {
+        ...(name && (!rawUser.name || rawUser.name === 'Thunder Site Owner') ? { name } : {}),
+        ...(avatar ? { avatar } : {}),
+      });
+      rawUser = db.getUserByEmail(cleanEmail);
+    }
+  }
+
+  if (!rawUser) {
+    return res.status(500).json({ error: 'Failed to authenticate Google user.' });
+  }
+
+  const { passwordHash, ...user } = rawUser;
+  const token = createToken({ userId: user.id, email: user.email, role: user.role });
+  return res.json({ user, token });
+});
+
 apiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const user = db.getUserById(req.user!.userId);
   if (!user) {

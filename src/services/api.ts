@@ -204,6 +204,33 @@ class ApiService {
   }
 
   // --- Auth ---
+  public async loginWithGoogle(data: { email: string; name?: string; avatar?: string; googleId?: string }): Promise<{ user: User; token: string }> {
+    const res = await this.request<{ user: User; token: string }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    if (res && res.user) {
+      this.setToken(res.token);
+      return res;
+    }
+
+    const cleanEmail = data.email.toLowerCase().trim();
+    const isOwner = cleanEmail === 'mishrashashwat90@gmail.com';
+    const role: 'student' | 'admin' = isOwner ? 'admin' : 'student';
+    const fallbackUser: User = {
+      id: `usr_g_${Date.now()}`,
+      name: data.name || (isOwner ? 'Shashwat Mishra' : cleanEmail.split('@')[0]),
+      email: cleanEmail,
+      role,
+      avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      createdAt: new Date().toISOString(),
+    };
+    const fakeToken = `token_${Date.now()}`;
+    this.setToken(fakeToken);
+    return { user: fallbackUser, token: fakeToken };
+  }
+
   public async login(email: string, password: string): Promise<{ user: User; token: string }> {
     const res = await this.request<{ user: User; token: string }>('/auth/login', {
       method: 'POST',

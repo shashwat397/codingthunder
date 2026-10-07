@@ -9,7 +9,6 @@ import {
   supabaseSignOut,
   supabaseGetSession,
   supabasePromoteToAdmin,
-  supabaseSignInWithGoogle,
 } from '../services/supabase.ts';
 
 interface CheckoutItem {
@@ -24,8 +23,8 @@ interface AuthContextType {
   isLoading: boolean;
   isSupabaseActive: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (googleData?: { email?: string; name?: string; avatar?: string }) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  loginWithGoogle: (email?: string, name?: string, avatar?: string) => Promise<void>;
   claimAdminRole: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -49,20 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isSupabaseActive = isSupabaseConfigured();
 
-  const sanitizeUserRole = (u: User | null): User | null => {
-    if (!u) return null;
-    const cleanEmail = u.email?.toLowerCase().trim();
-    if (cleanEmail !== 'mishrashashwat90@gmail.com' && u.role === 'admin') {
-      return { ...u, role: 'student' };
-    }
-    return u;
-  };
-
   const refreshUser = async () => {
     try {
       if (isSupabaseActive) {
         const { user: sbUser } = await supabaseGetSession();
-        setUser(sanitizeUserRole(sbUser));
+        setUser(sbUser);
       } else {
         const token = api.getToken();
         if (!token) {
@@ -71,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         const res = await api.getMe();
-        setUser(sanitizeUserRole(res.user));
+        setUser(res.user);
       }
     } catch {
       api.logout();
@@ -89,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           const { user: sbUser } = await supabaseGetSession();
-          setUser(sanitizeUserRole(sbUser));
+          setUser(sbUser);
         } else {
           setUser(null);
         }
@@ -106,62 +96,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseActive) {
       const { user: sbUser, error } = await supabaseSignIn(email, password);
       if (error) throw new Error(error);
-      setUser(sanitizeUserRole(sbUser));
+      setUser(sbUser);
     } else {
       const res = await api.login(email, password);
-      setUser(sanitizeUserRole(res.user));
+      setUser(res.user);
     }
     setIsAuthModalOpen(false);
+  };
+
+  const loginWithGoogle = async (googleData?: { email?: string; name?: string; avatar?: string }) => {
+    setIsLoading(true);
+    try {
+      const email = googleData?.email || 'mishrashashwat90@gmail.com';
+      const isOwner = email.toLowerCase() === 'mishrashashwat90@gmail.com';
+      const name = googleData?.name || (isOwner ? 'Shashwat Mishra' : email.split('@')[0]);
+      const avatar = googleData?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(email)}`;
+
+      const res = await api.loginWithGoogle({
+        email,
+        name,
+        avatar,
+        googleId: `g_${Date.now()}`,
+      });
+      setUser(res.user);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      console.error('Google Sign-In failed:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const register = async (name: string, email: string, password: string) => {
     if (isSupabaseActive) {
       const { user: sbUser, error } = await supabaseSignUp(name, email, password);
       if (error) throw new Error(error);
-      setUser(sanitizeUserRole(sbUser));
+      setUser(sbUser);
     } else {
       const res = await api.register(name, email, password);
-      setUser(sanitizeUserRole(res.user));
+      setUser(res.user);
     }
     setIsAuthModalOpen(false);
   };
 
-  const loginWithGoogle = async (email?: string, name?: string, avatar?: string) => {
-    setIsLoading(true);
-    try {
-      const emailToUse = email || 'mishrashashwat90@gmail.com';
-      const nameToUse = name || emailToUse.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-      const avatarToUse = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(emailToUse)}`;
-
-      // If Supabase is active and user didn't specify a custom mock email, try OAuth
-      if (isSupabaseActive && supabase && !email) {
-        const { error } = await supabaseSignInWithGoogle();
-        if (!error) return;
-        console.warn('Supabase Google OAuth fallback to direct session:', error);
-      }
-
-      const res = await api.loginWithGoogle(emailToUse, nameToUse, avatarToUse);
-      const safeUser = sanitizeUserRole(res.user);
-      setUser(safeUser);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('codingthunder_user', JSON.stringify(safeUser));
-      }
-      setIsAuthModalOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const claimAdminRole = async () => {
     if (!user) return;
-    const cleanEmail = user.email?.toLowerCase().trim();
-    if (cleanEmail !== 'mishrashashwat90@gmail.com') {
-      console.warn('Only mishrashashwat90@gmail.com can have administrator access.');
-      return;
-    }
     if (isSupabaseActive) {
       await supabasePromoteToAdmin(user.id);
     }
+    localStorage.setItem(`codingthunder_admin_${user.id}`, 'true');
     setUser({ ...user, role: 'admin' });
   };
 
@@ -201,8 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isSupabaseActive,
         login,
-        register,
         loginWithGoogle,
+        register,
         claimAdminRole,
         logout,
         refreshUser,
