@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Zap, Play, BookOpen, Star, Clock, CheckCircle2, ArrowRight, ShieldCheck, Download, Code2, Users, Flame, Terminal as TerminalIcon, Sparkles } from 'lucide-react';
 import { TerminalHero } from '../components/common/TerminalHero.tsx';
 import { DataSandbox } from '../components/common/DataSandbox.tsx';
+import { TypewriterHero } from '../components/common/TypewriterHero.tsx';
+import { HeroCodeWindow } from '../components/common/HeroCodeWindow.tsx';
+import { TechMarquee } from '../components/common/TechMarquee.tsx';
+import { CareerPathRoadmap } from '../components/common/CareerPathRoadmap.tsx';
 import { Course, Tutorial, Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -46,69 +50,78 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-20 pb-16">
       {/* 1. Hero Section */}
-      <section className="relative pt-12 sm:pt-20 overflow-hidden">
+      <section className="relative pt-10 sm:pt-16 lg:pt-20 overflow-hidden">
         {/* Ambient background glow */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-amber-500/10 blur-[130px] rounded-full pointer-events-none -z-10" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-amber-500/10 blur-[140px] rounded-full pointer-events-none -z-10" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto space-y-6">
-            {/* Top pill badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs font-mono">
-              <Zap className="w-3.5 h-3.5 text-amber-400 fill-current animate-pulse" />
-              <span>Full-Stack 2026 Curriculum · 100% Practical</span>
+          {/* 2-Column Hero: Left Copy & CTAs, Right Interactive Code Window */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+            {/* Left Column: Heading, Animated Typewriter, Description, CTAs */}
+            <div className="lg:col-span-7 text-center lg:text-left space-y-6">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
+                Welcome to{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500">
+                  Codingthunder
+                </span>
+              </h1>
+
+              {/* Smooth Dynamic Typewriter Sub-headline */}
+              <TypewriterHero align="responsive" />
+
+              <p className="text-base sm:text-lg text-slate-300 leading-relaxed font-sans max-w-2xl mx-auto lg:mx-0">
+                Production-tested coding education inspired by the clarity of real engineering. Master modern web development, algorithms, backend architecture, and cloud deployment with zero fluff.
+              </p>
+
+              {/* CTAs */}
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                <button
+                  onClick={() => onNavigate('/courses')}
+                  className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 cursor-pointer"
+                >
+                  <span>Explore Courses & Bootcamps</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onNavigate('/tutorials')}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 font-semibold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Code2 className="w-4 h-4 text-amber-400" />
+                  <span>Free Cheat Sheets & Notes</span>
+                </button>
+              </div>
+
+              {/* Social Trust Metrics */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-8 gap-y-3 pt-3 text-xs text-slate-400 font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-400 font-bold">450K+</span> Active Students
+                </div>
+                <span>·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-400 font-bold">4.9/5</span> Average Rating
+                </div>
+                <span>·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-400 font-bold">100%</span> Source Code Provided
+                </div>
+              </div>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white leading-[1.1]">
-              Code Fast. Build Loud.{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-500">
-                Ship Without Fear.
-              </span>
-            </h1>
-
-            <p className="text-base sm:text-lg text-slate-300 leading-relaxed font-sans max-w-2xl mx-auto">
-              Production-tested coding education inspired by the clarity of real engineering. Master modern web development, algorithms, backend architecture, and cloud deployment with zero fluff.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <button
-                onClick={() => onNavigate('/courses')}
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 cursor-pointer"
-              >
-                <span>Explore Courses & Bootcamps</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onNavigate('/tutorials')}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 font-semibold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Code2 className="w-4 h-4 text-amber-400" />
-                <span>Free Cheat Sheets & Notes</span>
-              </button>
-            </div>
-
-            {/* Social Trust Metrics */}
-            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 pt-4 text-xs text-slate-400 font-mono">
-              <div className="flex items-center gap-1.5">
-                <span className="text-amber-400 font-bold">450K+</span> Active Students
-              </div>
-              <span className="hidden sm:inline">·</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-amber-400 font-bold">4.9/5</span> Average Rating
-              </div>
-              <span className="hidden sm:inline">·</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-amber-400 font-bold">100%</span> Source Code Provided
-              </div>
+            {/* Right Column: Interactive Hero Code Window (macOS dark glassmorphic terminal card) */}
+            <div className="lg:col-span-5 w-full">
+              <HeroCodeWindow />
             </div>
           </div>
 
           {/* Interactive Terminal Showcase */}
-          <div className="mt-12 sm:mt-16">
+          <div className="mt-14 sm:mt-20">
             <TerminalHero />
           </div>
         </div>
       </section>
+
+      {/* 2. Infinite Scrolling Tech Stack Marquee (Directly below Hero Section) */}
+      <TechMarquee />
 
       {/* Interactive SQL & Pandas Sandbox Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -127,6 +140,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
         <DataSandbox />
       </section>
+
+      {/* 3. Interactive Learning Roadmap Switcher (Middle of Homepage) */}
+      <CareerPathRoadmap onNavigate={onNavigate} />
 
       {/* 2. Value Propositions (The Thunder Way) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
