@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, Star, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Search, BookOpen, Download, Star, CheckCircle, ArrowRight, ShieldCheck, Info } from 'lucide-react';
 import { Ebook } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -80,6 +80,28 @@ export const EbooksView: React.FC<EbooksViewProps> = ({ onNavigate }) => {
             Search
           </button>
         </form>
+      </div>
+
+      {/* Customer Support Notice */}
+      <div className="rounded-2xl bg-slate-900/80 border border-amber-500/30 p-4 sm:p-5 flex items-start gap-3.5 shadow-lg backdrop-blur-sm">
+        <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+          <Info className="w-5 h-5 text-amber-400" />
+        </div>
+        <div className="flex-1 text-xs sm:text-sm text-slate-300 leading-relaxed">
+          <span className="font-bold text-white">Having trouble? </span>
+          <span>
+            In case of any queries, website glitches, or issues downloading your resources, please message us directly:{' '}
+          </span>
+          <a
+            href="https://wa.me/919868652237"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-bold text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition-colors inline-flex items-center gap-1"
+          >
+            <span>Chat with us on WhatsApp</span>
+          </a>
+          <span>. Our team will assist you as soon as possible.</span>
+        </div>
       </div>
 
       {/* Ebooks Grid */}

@@ -425,63 +425,91 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           <h2 className="text-2xl sm:text-3xl font-bold text-white mt-1">Built by Coders, Loved by Thousands</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center gap-1 text-amber-400 mb-3">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3.5 h-3.5 fill-current" />
-              ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                ))}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                "I purchased and read the ebook 'SQL Mastery: From Beginner to Interview Ready' from this website, and the transition from beginner syntax to real-world business analytics is seamless. It's the ultimate cheat sheet for interview prep—it directly helped me pass all my technical SQL rounds and land my dream Data Analyst job!"
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              "The Full-Stack course taught me more about real production deployment in 2 weeks than my entire 4-year engineering degree. The cheat sheets alone are gold."
-            </p>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-slate-800 font-bold text-xs flex items-center justify-center text-amber-400">
-                RK
+                ER
               </div>
               <div>
-                <div className="text-xs font-bold text-white">Rohit Kumar</div>
-                <div className="text-[11px] text-slate-500">Software Engineer @ Razorpay</div>
+                <div className="text-xs font-bold text-white">Emily R.</div>
+                <div className="text-[11px] text-slate-500">Senior Data Analyst @ TechCorp</div>
               </div>
             </div>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center gap-1 text-amber-400 mb-3">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3.5 h-3.5 fill-current" />
-              ))}
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                ))}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                "Purchasing and reading 'SQL Mastery: From Beginner to Interview Ready' from this website was a total game-changer. The complex window functions, subqueries, and real business case studies prepared me for every tricky question. It helped me clear the live coding round effortlessly and land my Data Analyst job!"
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              "Codingthunder's DSA Blueprint book got me through Google's technical onsite. The 14 core patterns approach removes all the guesswork from interview prep."
-            </p>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-slate-800 font-bold text-xs flex items-center justify-center text-cyan-400">
-                AP
+                RS
               </div>
               <div>
-                <div className="text-xs font-bold text-white">Ananya Patel</div>
-                <div className="text-[11px] text-slate-500">L4 SRE @ Cloud Tech</div>
+                <div className="text-xs font-bold text-white">Rohan Sharma</div>
+                <div className="text-[11px] text-slate-500">Data Analyst @ Swiggy</div>
               </div>
             </div>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center gap-1 text-amber-400 mb-3">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3.5 h-3.5 fill-current" />
-              ))}
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                ))}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                "I purchased the SQL ebook from here before my technical rounds. The practice queries and interview tips were spot on. Helped me easily clear the live coding test and crack my Data Analyst job!"
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              "Clean, dark UI, zero annoying popups, instantaneous video player, and copyable code blocks with line numbers. Exactly what an educational site should be."
-            </p>
             <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-slate-800 font-bold text-xs flex items-center justify-center text-emerald-400">
-                MS
+              <div className="w-8 h-8 rounded-full bg-slate-800 font-bold text-xs flex items-center justify-center text-amber-400">
+                AV
               </div>
               <div>
-                <div className="text-xs font-bold text-white">Marcus Sterling</div>
-                <div className="text-[11px] text-slate-500">Full-Stack Indie Hacker</div>
+                <div className="text-xs font-bold text-white">Aman Verma</div>
+                <div className="text-[11px] text-slate-500">Data Analyst @ Bengaluru</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                ))}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                "I was nervous about technical SQL interviews until I purchased and read 'SQL Mastery: From Beginner to Interview Ready' on this site. The query breakdowns, indexing tips, and interview cheat sheets were spot on. Thanks to this ebook, I aced my technical interviews and successfully landed my first Data Analyst role!"
+              </p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-800 font-bold text-xs flex items-center justify-center text-emerald-400">
+                JM
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">Jessica Miller</div>
+                <div className="text-[11px] text-slate-500">Junior Data Analyst @ Deloitte</div>
               </div>
             </div>
           </div>
