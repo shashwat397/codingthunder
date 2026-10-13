@@ -1029,6 +1029,12 @@ apiRouter.post('/admin/upload', requireAdmin, (req: Request, res: Response) => {
 
 // Public: Fetch all published blog posts with pagination & filtering
 apiRouter.get('/blogs', (req: Request, res: Response) => {
+  // Prevent aggressive edge / CDN / browser caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+
   try {
     const page = parseInt(req.query.page as string || '1', 10);
     const limit = parseInt(req.query.limit as string || '10', 10);
@@ -1062,6 +1068,12 @@ apiRouter.get('/blogs', (req: Request, res: Response) => {
 
 // Public: Fetch a single blog post by slug
 apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
+  // Prevent aggressive edge / CDN / browser caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+
   try {
     const { slug } = req.params;
     const post = db.getBlogByIdOrSlug(slug);
@@ -1173,7 +1185,8 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
     };
 
     const saved = db.createBlog(newPost);
-    return res.status(201).json({ success: true, post: saved });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return res.status(201).json({ success: true, post: saved, revalidated: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to create blog post.' });
   }
@@ -1208,7 +1221,8 @@ apiRouter.put('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) =>
     }
 
     const updated = db.updateBlog(existing.id, updates);
-    return res.json({ success: true, post: updated });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return res.json({ success: true, post: updated, revalidated: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to update blog post.' });
   }
@@ -1225,9 +1239,21 @@ apiRouter.delete('/admin/blogs/:id', requireAdmin, (req: Request, res: Response)
     }
 
     const ok = db.deleteBlog(existing.id);
-    return res.json({ success: ok });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return res.json({ success: ok, revalidated: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to delete blog post.' });
   }
+});
+
+// Cache Revalidation Endpoint (On-demand revalidation for Next.js, Vercel, and CDN caches)
+apiRouter.post('/blogs/revalidate', (req: Request, res: Response) => {
+  const { slug, path } = req.body || {};
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return res.json({
+    revalidated: true,
+    paths: [path || '/blog', slug ? `/blog/${slug}` : '/blog'],
+    timestamp: Date.now(),
+  });
 });
 

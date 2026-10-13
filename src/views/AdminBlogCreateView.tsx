@@ -15,6 +15,7 @@ import {
   AlertCircle,
   FileText,
   Upload,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../services/api.ts';
@@ -285,19 +286,19 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
               type="button"
               disabled={saving}
               onClick={() => handleSave('draft')}
-              className="px-3.5 py-1.5 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>Save Draft</span>
+              {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>{saving ? 'Saving...' : 'Save Draft'}</span>
             </button>
 
             <button
               type="button"
               disabled={saving}
               onClick={() => handleSave('published')}
-              className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition cursor-pointer shadow-lg shadow-amber-500/20 flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition cursor-pointer shadow-lg shadow-amber-500/20 flex items-center gap-1.5 disabled:opacity-50"
             >
-              <Send className="w-3.5 h-3.5" />
+              {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               <span>{saving ? 'Publishing...' : 'Publish Article'}</span>
             </button>
           </div>

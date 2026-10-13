@@ -57,6 +57,20 @@ export const BlogPostDetailView: React.FC<BlogPostDetailViewProps> = ({ slug, on
     }
     loadPost();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const handleUpdate = () => {
+      loadPost();
+    };
+
+    window.addEventListener('blog-updated', handleUpdate);
+    window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+
+    return () => {
+      window.removeEventListener('blog-updated', handleUpdate);
+      window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, [slug]);
 
   // Extract Table of Contents from HTML content H2/H3 tags

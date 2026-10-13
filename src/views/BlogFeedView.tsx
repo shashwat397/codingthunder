@@ -58,6 +58,20 @@ export const BlogFeedView: React.FC<BlogFeedViewProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     fetchPosts();
+
+    const handleUpdate = () => {
+      fetchPosts();
+    };
+
+    window.addEventListener('blog-updated', handleUpdate);
+    window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+
+    return () => {
+      window.removeEventListener('blog-updated', handleUpdate);
+      window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, [selectedCategory, page]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

@@ -48,7 +48,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
       loadData();
     };
     window.addEventListener('catalog-updated', onCatalogUpdated);
-    return () => window.removeEventListener('catalog-updated', onCatalogUpdated);
+    window.addEventListener('blog-updated', onCatalogUpdated);
+    window.addEventListener('focus', onCatalogUpdated);
+    return () => {
+      window.removeEventListener('catalog-updated', onCatalogUpdated);
+      window.removeEventListener('blog-updated', onCatalogUpdated);
+      window.removeEventListener('focus', onCatalogUpdated);
+    };
   }, []);
 
   return (

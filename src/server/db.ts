@@ -131,6 +131,20 @@ class Database {
     }, 50);
   }
 
+  public saveSync() {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    try {
+      const tempPath = `${DB_FILE}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      fs.renameSync(tempPath, DB_FILE);
+    } catch (err) {
+      console.error('[DB] Failed to save database synchronously:', err);
+    }
+  }
+
   // --- Users ---
   public getUsers() {
     return this.data.users.map(({ passwordHash, ...user }) => user);
@@ -383,7 +397,7 @@ class Database {
   public createBlog(post: BlogPost): BlogPost {
     if (!this.data.blogs) this.data.blogs = [];
     this.data.blogs.unshift(post);
-    this.save();
+    this.saveSync();
     return post;
   }
 
@@ -396,7 +410,7 @@ class Database {
       ...updates,
       updatedAt: new Date().toISOString(),
     };
-    this.save();
+    this.saveSync();
     return this.data.blogs[idx];
   }
 
@@ -405,7 +419,7 @@ class Database {
     const idx = this.data.blogs.findIndex(b => b.id === id);
     if (idx === -1) return false;
     this.data.blogs.splice(idx, 1);
-    this.save();
+    this.saveSync();
     return true;
   }
 

@@ -83,6 +83,9 @@ class ApiService {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         ...(options.headers as Record<string, string>),
       };
 
@@ -90,7 +93,15 @@ class ApiService {
         headers['Authorization'] = `Bearer ${this.token}`;
       }
 
-      const response = await fetch(`/api${endpoint}`, {
+      // Add cache buster timestamp for GET requests to strictly prevent browser or edge proxy caching
+      let url = `/api${endpoint}`;
+      if (!options.method || options.method === 'GET') {
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}_t=${Date.now()}`;
+      }
+
+      const response = await fetch(url, {
+        cache: 'no-store', // Next.js and modern fetch cache-breaker
         ...options,
         headers,
       });
@@ -1743,17 +1754,24 @@ class ApiService {
     return { posts: list, total: list.length };
   }
 
+  public async revalidateBlog(slug?: string): Promise<void> {
+    try {
+      await this.request('/blogs/revalidate', {
+        method: 'POST',
+        body: JSON.stringify({ slug, path: slug ? `/blog/${slug}` : '/blog' }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    if (serverRes && serverRes.post) {
-      return serverRes;
-    }
 
-    // Local fallback
-    const newPost: BlogPost = {
+    const finalPost = serverRes && serverRes.post ? serverRes.post : {
       id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title: data.title || 'Untitled Post',
       slug: data.slug || `post-${Date.now()}`,
@@ -1776,11 +1794,16 @@ class ApiService {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      list.unshift(newPost);
+      list.unshift(finalPost);
       localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: finalPost, action: 'create' } }));
+      window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
 
-    return { success: true, post: newPost };
+    // Trigger on-demand revalidation
+    this.revalidateBlog(finalPost.slug);
+
+    return { success: true, post: finalPost };
   }
 
   public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
@@ -1788,21 +1811,28 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(data),
     });
-    if (serverRes && serverRes.post) {
-      return serverRes;
-    }
 
-    let updatedPost: BlogPost | null = null;
+    let updatedPost: BlogPost | null = serverRes && serverRes.post ? serverRes.post : null;
+
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
       const idx = list.findIndex((b: BlogPost) => b.id === id);
       if (idx !== -1) {
-        list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
-        updatedPost = list[idx];
+        list[idx] = updatedPost || { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+        if (!updatedPost) updatedPost = list[idx];
         localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
       }
+      if (updatedPost) {
+        window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: updatedPost, action: 'update' } }));
+        window.dispatchEvent(new CustomEvent('catalog-updated'));
+      }
     }
+
+    if (updatedPost) {
+      this.revalidateBlog(updatedPost.slug);
+    }
+
     return { success: !!updatedPost, post: updatedPost };
   }
 
@@ -1810,17 +1840,19 @@ class ApiService {
     const serverRes = await this.request<{ success: boolean }>(`/admin/blogs/${id}`, {
       method: 'DELETE',
     });
-    if (serverRes && typeof serverRes.success === 'boolean') {
-      return serverRes;
-    }
 
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
       list = list.filter((b: BlogPost) => b.id !== id);
       localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('blog-updated', { detail: { id, action: 'delete' } }));
+      window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
-    return { success: true };
+
+    this.revalidateBlog();
+
+    return { success: serverRes?.success ?? true };
   }
 
   public async uploadBlogImage(fileName: string, base64Data: string, fileType = 'image/png'): Promise<{ url: string; success: boolean }> {
