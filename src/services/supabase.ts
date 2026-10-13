@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
-import { Course, Tutorial, Ebook, User } from '../types/index.ts';
+import { Course, Tutorial, Ebook, User, BlogPost } from '../types/index.ts';
 
 // Supabase environment credentials
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -565,5 +565,150 @@ export async function supabaseSaveProgress(
     return false;
   } catch {
     return false;
+  }
+}
+
+// ============================================================================
+// SUPABASE BLOG & ARTICLE HELPERS
+// ============================================================================
+
+export function rowToBlog(row: any): BlogPost {
+  const rawStatus = (row.status || 'published').toLowerCase().trim();
+  const status: 'published' | 'draft' = rawStatus === 'published' ? 'published' : 'draft';
+
+  return {
+    id: row.id,
+    title: row.title || 'Untitled Post',
+    slug: row.slug,
+    content: row.content || '',
+    excerpt: row.excerpt || '',
+    featuredImage: row.featured_image || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+    authorId: row.author_id || 'usr_owner_default',
+    authorName: row.author_name || 'Shashwat Mishra',
+    authorAvatar: row.author_avatar || 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+    authorRole: row.author_role || 'Lead Data Architect',
+    authorBio: row.author_bio || undefined,
+    category: row.category || 'Data Analytics',
+    tags: Array.isArray(row.tags) ? row.tags : (row.tags ? [row.tags] : ['Data Analytics']),
+    status,
+    readTime: row.read_time || '7 min read',
+    views: Number(row.views || 0),
+    featured: Boolean(row.featured),
+    seoDescription: row.seo_description || row.excerpt || '',
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+export function blogToRow(blog: Partial<BlogPost>): any {
+  return {
+    id: blog.id,
+    title: blog.title,
+    slug: blog.slug,
+    content: blog.content,
+    excerpt: blog.excerpt,
+    featured_image: blog.featuredImage,
+    author_id: blog.authorId || 'usr_owner_default',
+    author_name: blog.authorName || 'Shashwat Mishra',
+    author_avatar: blog.authorAvatar || 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+    author_role: blog.authorRole || 'Lead Data Architect',
+    author_bio: blog.authorBio || null,
+    category: blog.category || 'Data Analytics',
+    tags: blog.tags || ['Data Analytics'],
+    status: (blog.status || 'published').toLowerCase(),
+    read_time: blog.readTime || '7 min read',
+    views: blog.views || 0,
+    featured: Boolean(blog.featured),
+    seo_description: blog.seoDescription || blog.excerpt || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function supabaseGetBlogs(options?: {
+  category?: string;
+  tag?: string;
+  search?: string;
+  all?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<{ posts: BlogPost[]; total: number } | null> {
+  if (!supabase) return null;
+  try {
+    let query = supabase.from('blogs').select('*', { count: 'exact' });
+
+    // Strict published filtering for public feed unless all is true
+    if (!options?.all) {
+      query = query.ilike('status', 'published');
+    }
+
+    if (options?.category && options.category !== 'All') {
+      query = query.ilike('category', options.category.trim());
+    }
+
+    if (options?.search) {
+      const q = options.search.trim();
+      query = query.or(`title.ilike.%${q}%,excerpt.ilike.%${q}%`);
+    }
+
+    const page = options?.page || 1;
+    const limit = options?.limit || 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    query = query.order('created_at', { ascending: false }).range(from, to);
+
+    const { data, count, error } = await query;
+    if (error || !data) {
+      console.warn('[Supabase Blogs] Query error or no table found, falling back:', error?.message);
+      return null;
+    }
+
+    const posts = data.map(rowToBlog);
+    return { posts, total: count ?? posts.length };
+  } catch (err: any) {
+    console.error('[Supabase Blogs] Exception in supabaseGetBlogs:', err);
+    return null;
+  }
+}
+
+export async function supabaseGetBlogBySlug(slugOrId: string): Promise<BlogPost | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('blogs')
+      .select('*')
+      .or(`slug.eq.${slugOrId},id.eq.${slugOrId}`)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return rowToBlog(data);
+  } catch {
+    return null;
+  }
+}
+
+export async function supabaseSaveBlog(blog: BlogPost): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Supabase not configured' };
+  try {
+    const row = blogToRow(blog);
+    const { error } = await supabase.from('blogs').upsert(row);
+    if (error) {
+      console.error('[Supabase Blogs] Upsert error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function supabaseDeleteBlog(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Supabase not configured' };
+  try {
+    const { error } = await supabase.from('blogs').delete().eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }

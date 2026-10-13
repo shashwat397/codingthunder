@@ -47,13 +47,42 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
     const onCatalogUpdated = () => {
       loadData();
     };
+
     window.addEventListener('catalog-updated', onCatalogUpdated);
     window.addEventListener('blog-updated', onCatalogUpdated);
     window.addEventListener('focus', onCatalogUpdated);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'codingthunder_blogs') {
+        loadData();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    const onVisibility = () => {
+      if (!document.hidden) {
+        loadData();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('codingthunder_blog_sync');
+        bc.onmessage = () => {
+          loadData();
+        };
+      } catch {}
+    }
+
     return () => {
       window.removeEventListener('catalog-updated', onCatalogUpdated);
       window.removeEventListener('blog-updated', onCatalogUpdated);
       window.removeEventListener('focus', onCatalogUpdated);
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (bc) bc.close();
     };
   }, []);
 

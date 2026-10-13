@@ -340,11 +340,13 @@ class Database {
     if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     let list = [...this.data.blogs];
 
-    // Status filter
-    if (options?.status) {
-      list = list.filter(b => b.status === options.status);
-    } else {
-      list = list.filter(b => b.status === 'published');
+    // Status filter - resilient case-insensitive matching
+    const targetStatus = (options?.status || 'published').toLowerCase().trim();
+    if (targetStatus !== 'all') {
+      list = list.filter(b => {
+        const s = (b.status || 'published').toLowerCase().trim();
+        return s === targetStatus;
+      });
     }
 
     // Category filter

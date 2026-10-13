@@ -1,4 +1,4 @@
-import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings, BlogPost, BlogListResponse } from '../types/index.ts';
+import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings, BlogPost, BlogPostStatus, BlogListResponse } from '../types/index.ts';
 import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 import { getSeedData } from '../server/seed.ts';
 import { 
@@ -13,6 +13,10 @@ import {
   supabaseDeleteEbook,
   supabaseSaveTutorial,
   supabaseDeleteTutorial,
+  supabaseGetBlogs,
+  supabaseGetBlogBySlug,
+  supabaseSaveBlog,
+  supabaseDeleteBlog,
   rowToCourse,
   rowToEbook,
   rowToTutorial
@@ -1651,6 +1655,36 @@ class ApiService {
     tag?: string;
     search?: string;
   }): Promise<BlogListResponse> {
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+
+    // 1. Try Supabase first if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const sbRes = await supabaseGetBlogs({
+          category: params?.category,
+          tag: params?.tag,
+          search: params?.search,
+          page,
+          limit,
+        });
+        if (sbRes && sbRes.posts.length > 0) {
+          const totalPages = Math.ceil(sbRes.total / limit) || 1;
+          console.log('[DEBUG_CLIENT] getBlogs loaded from Supabase:', { count: sbRes.posts.length, total: sbRes.total });
+          return {
+            posts: sbRes.posts,
+            total: sbRes.total,
+            page,
+            limit,
+            totalPages,
+          };
+        }
+      } catch (err) {
+        console.warn('[DEBUG_CLIENT] Supabase getBlogs error, falling back to server API:', err);
+      }
+    }
+
+    // 2. Query server API endpoint
     const query = new URLSearchParams();
     if (params?.page) query.append('page', params.page.toString());
     if (params?.limit) query.append('limit', params.limit.toString());
@@ -1661,10 +1695,12 @@ class ApiService {
     const qs = query.toString();
     const serverRes = await this.request<BlogListResponse>(`/blogs${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.posts)) {
+      console.log('[DEBUG_CLIENT] getBlogs loaded from Server API:', { count: serverRes.posts.length, total: serverRes.total });
       return serverRes;
     }
 
-    // Local / offline fallback
+    // 3. Local / offline fallback
+    console.warn('[DEBUG_CLIENT] getBlogs falling back to local storage cache');
     let list = [...MOCK_BLOG_POSTS];
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
@@ -1678,7 +1714,7 @@ class ApiService {
       }
     }
 
-    list = list.filter((b) => b.status === 'published');
+    list = list.filter((b) => (b.status || 'published').toLowerCase() === 'published');
     if (params?.category && params.category !== 'All') {
       list = list.filter((b) => b.category.toLowerCase() === params.category!.toLowerCase());
     }
@@ -1695,8 +1731,6 @@ class ApiService {
       );
     }
 
-    const page = params?.page || 1;
-    const limit = params?.limit || 10;
     const total = list.length;
     const totalPages = Math.ceil(total / limit) || 1;
     const offset = (page - 1) * limit;
@@ -1711,11 +1745,27 @@ class ApiService {
   }
 
   public async getBlog(slugOrId: string): Promise<{ post: BlogPost | null }> {
+    // 1. Try Supabase first if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const sbPost = await supabaseGetBlogBySlug(slugOrId);
+        if (sbPost) {
+          console.log('[DEBUG_CLIENT] getBlog loaded from Supabase:', { slug: sbPost.slug, title: sbPost.title });
+          return { post: sbPost };
+        }
+      } catch (err) {
+        console.warn('[DEBUG_CLIENT] Supabase getBlog error:', err);
+      }
+    }
+
+    // 2. Query server API endpoint
     const serverRes = await this.request<{ post: BlogPost }>(`/blogs/${slugOrId}`);
     if (serverRes && serverRes.post) {
+      console.log('[DEBUG_CLIENT] getBlog loaded from Server API:', { slug: serverRes.post.slug });
       return serverRes;
     }
 
+    // 3. Fallback
     let list = [...MOCK_BLOG_POSTS];
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
@@ -1734,11 +1784,26 @@ class ApiService {
   }
 
   public async getAdminBlogs(): Promise<{ posts: BlogPost[]; total: number }> {
+    // 1. Try Supabase first if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const sbRes = await supabaseGetBlogs({ all: true, limit: 100 });
+        if (sbRes && sbRes.posts.length > 0) {
+          console.log('[DEBUG_CLIENT] getAdminBlogs loaded from Supabase:', { count: sbRes.posts.length });
+          return { posts: sbRes.posts, total: sbRes.total };
+        }
+      } catch (err) {
+        console.warn('[DEBUG_CLIENT] Supabase getAdminBlogs error:', err);
+      }
+    }
+
+    // 2. Query server API endpoint
     const serverRes = await this.request<{ posts: BlogPost[]; total: number }>('/admin/blogs');
     if (serverRes && Array.isArray(serverRes.posts)) {
       return serverRes;
     }
 
+    // 3. Fallback
     let list = [...MOCK_BLOG_POSTS];
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
@@ -1766,12 +1831,14 @@ class ApiService {
   }
 
   public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
+    // 1. Persist to server API
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
       method: 'POST',
       body: JSON.stringify(data),
     });
 
-    const finalPost = serverRes && serverRes.post ? serverRes.post : {
+    const fallbackStatus: BlogPostStatus = (data.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published';
+    const finalPost: BlogPost = serverRes && serverRes.post ? serverRes.post : {
       id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title: data.title || 'Untitled Post',
       slug: data.slug || `post-${Date.now()}`,
@@ -1784,13 +1851,24 @@ class ApiService {
       authorRole: 'Lead Data Architect',
       category: data.category || 'Data Analytics',
       tags: data.tags || ['Data Analytics'],
-      status: data.status || 'published',
+      status: fallbackStatus,
       readTime: data.readTime || '7 min read',
       views: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
+    // 2. Persist to Supabase if configured
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseSaveBlog(finalPost);
+        console.log('[DEBUG_CLIENT] createBlog synced to Supabase successfully:', { id: finalPost.id, slug: finalPost.slug });
+      } catch (err) {
+        console.error('[DEBUG_CLIENT] Error saving blog to Supabase:', err);
+      }
+    }
+
+    // 3. Update localStorage cache & dispatch events
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
@@ -1800,13 +1878,15 @@ class ApiService {
       window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
 
-    // Trigger on-demand revalidation
+    // 4. Trigger on-demand revalidation
     this.revalidateBlog(finalPost.slug);
 
+    console.log('[DEBUG_CLIENT] createBlog finalized:', { title: finalPost.title, status: finalPost.status, slug: finalPost.slug });
     return { success: true, post: finalPost };
   }
 
   public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
+    // 1. Send update to server API
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1814,6 +1894,7 @@ class ApiService {
 
     let updatedPost: BlogPost | null = serverRes && serverRes.post ? serverRes.post : null;
 
+    // 2. Update local storage
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
@@ -1829,18 +1910,41 @@ class ApiService {
       }
     }
 
+    // 3. Persist to Supabase if configured
+    if (updatedPost && isSupabaseConfigured()) {
+      try {
+        await supabaseSaveBlog(updatedPost);
+        console.log('[DEBUG_CLIENT] updateBlog synced to Supabase successfully:', { id: updatedPost.id });
+      } catch (err) {
+        console.error('[DEBUG_CLIENT] Error updating blog in Supabase:', err);
+      }
+    }
+
     if (updatedPost) {
       this.revalidateBlog(updatedPost.slug);
     }
 
+    console.log('[DEBUG_CLIENT] updateBlog finalized:', { id, updatedPost });
     return { success: !!updatedPost, post: updatedPost };
   }
 
   public async deleteBlog(id: string): Promise<{ success: boolean }> {
+    // 1. Delete on server API
     const serverRes = await this.request<{ success: boolean }>(`/admin/blogs/${id}`, {
       method: 'DELETE',
     });
 
+    // 2. Delete on Supabase if configured
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseDeleteBlog(id);
+        console.log('[DEBUG_CLIENT] deleteBlog synced to Supabase:', { id });
+      } catch (err) {
+        console.error('[DEBUG_CLIENT] Error deleting blog in Supabase:', err);
+      }
+    }
+
+    // 3. Remove from localStorage
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
@@ -1851,7 +1955,6 @@ class ApiService {
     }
 
     this.revalidateBlog();
-
     return { success: serverRes?.success ?? true };
   }
 

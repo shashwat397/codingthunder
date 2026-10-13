@@ -66,10 +66,37 @@ export const BlogPostDetailView: React.FC<BlogPostDetailViewProps> = ({ slug, on
     window.addEventListener('catalog-updated', handleUpdate);
     window.addEventListener('focus', handleUpdate);
 
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'codingthunder_blogs') {
+        loadPost();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        loadPost();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('codingthunder_blog_sync');
+        bc.onmessage = () => {
+          loadPost();
+        };
+      } catch {}
+    }
+
     return () => {
       window.removeEventListener('blog-updated', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
       window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (bc) bc.close();
     };
   }, [slug]);
 
