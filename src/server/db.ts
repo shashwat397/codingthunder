@@ -29,6 +29,7 @@ export interface DatabaseSchema {
 class Database {
   private data: DatabaseSchema;
   private saveTimeout: NodeJS.Timeout | null = null;
+  private lastMtime: number = 0;
 
   constructor() {
     this.ensureDirs();
@@ -38,10 +39,28 @@ class Database {
     this.ensureDefaultBlogs();
   }
 
+  public reloadFromDisk() {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const stats = fs.statSync(DB_FILE);
+        if (stats.mtimeMs > this.lastMtime) {
+          const raw = fs.readFileSync(DB_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            this.data = { ...this.data, ...parsed };
+            this.lastMtime = stats.mtimeMs;
+          }
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
   private ensureDefaultBlogs() {
     if (!this.data.blogs || this.data.blogs.length === 0) {
       this.data.blogs = [...MOCK_BLOG_POSTS];
-      this.save();
+      this.saveSync();
     }
   }
 
@@ -140,6 +159,9 @@ class Database {
       const tempPath = `${DB_FILE}.tmp`;
       fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
       fs.renameSync(tempPath, DB_FILE);
+      if (fs.existsSync(DB_FILE)) {
+        this.lastMtime = fs.statSync(DB_FILE).mtimeMs;
+      }
     } catch (err) {
       console.error('[DB] Failed to save database synchronously:', err);
     }
@@ -337,20 +359,20 @@ class Database {
     limit?: number;
     offset?: number;
   }) {
+    this.reloadFromDisk();
     if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     let list = [...this.data.blogs];
 
-    // Status filter
-    if (options?.status) {
-      list = list.filter(b => b.status === options.status);
-    } else {
-      list = list.filter(b => b.status === 'published');
+    // Status filter (case-insensitive & trimmed)
+    const targetStatus = (options?.status || 'published').toLowerCase().trim();
+    if (targetStatus !== 'all') {
+      list = list.filter(b => (b.status || 'published').toLowerCase().trim() === targetStatus);
     }
 
     // Category filter
     if (options?.category && options.category !== 'All') {
       const cat = options.category.toLowerCase().trim();
-      list = list.filter(b => b.category.toLowerCase().trim() === cat);
+      list = list.filter(b => b.category && b.category.toLowerCase().trim() === cat);
     }
 
     // Tag filter
@@ -365,9 +387,9 @@ class Database {
       list = list.filter(
         b =>
           b.title.toLowerCase().includes(q) ||
-          b.excerpt.toLowerCase().includes(q) ||
+          (b.excerpt && b.excerpt.toLowerCase().includes(q)) ||
           (b.tags && b.tags.some(t => t.toLowerCase().includes(q))) ||
-          b.content.toLowerCase().includes(q)
+          (b.content && b.content.toLowerCase().includes(q))
       );
     }
 
@@ -383,6 +405,7 @@ class Database {
   }
 
   public getAllBlogsAdmin() {
+    this.reloadFromDisk();
     if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     return [...this.data.blogs].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -390,11 +413,14 @@ class Database {
   }
 
   public getBlogByIdOrSlug(idOrSlug: string): BlogPost | null {
+    this.reloadFromDisk();
     if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
-    return this.data.blogs.find(b => b.id === idOrSlug || b.slug === idOrSlug) || null;
+    const target = idOrSlug.trim();
+    return this.data.blogs.find(b => b.id === target || b.slug === target || b.slug?.toLowerCase() === target.toLowerCase()) || null;
   }
 
   public createBlog(post: BlogPost): BlogPost {
+    this.reloadFromDisk();
     if (!this.data.blogs) this.data.blogs = [];
     this.data.blogs.unshift(post);
     this.saveSync();
@@ -402,6 +428,7 @@ class Database {
   }
 
   public updateBlog(id: string, updates: Partial<BlogPost>): BlogPost | null {
+    this.reloadFromDisk();
     if (!this.data.blogs) this.data.blogs = [];
     const idx = this.data.blogs.findIndex(b => b.id === id);
     if (idx === -1) return null;
@@ -415,6 +442,7 @@ class Database {
   }
 
   public deleteBlog(id: string): boolean {
+    this.reloadFromDisk();
     if (!this.data.blogs) return false;
     const idx = this.data.blogs.findIndex(b => b.id === id);
     if (idx === -1) return false;

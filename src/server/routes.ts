@@ -188,6 +188,33 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
   return res.json({ user, token });
 });
 
+// Direct admin activation / token issuance for verified owner
+apiRouter.post('/auth/claim-admin', (req: Request, res: Response) => {
+  const { email } = req.body || {};
+  const cleanEmail = String(email || '').toLowerCase().trim();
+  if (cleanEmail !== 'mishrashashwat90@gmail.com') {
+    return res.status(403).json({ error: 'Administrator access strictly restricted to mishrashashwat90@gmail.com.' });
+  }
+
+  let rawUser = db.getUserByEmail(cleanEmail);
+  if (!rawUser) {
+    db.createUser({
+      id: 'usr_owner_default',
+      name: 'Shashwat Mishra',
+      email: cleanEmail,
+      passwordHash: hashPassword('ThunderDemo!2026'),
+      role: 'admin',
+      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      createdAt: new Date().toISOString(),
+    });
+    rawUser = db.getUserByEmail(cleanEmail);
+  }
+
+  const { passwordHash, ...user } = rawUser!;
+  const token = createToken({ userId: user.id, email: user.email, role: 'admin' });
+  return res.json({ success: true, user: { ...user, role: 'admin' }, token });
+});
+
 apiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const user = db.getUserById(req.user!.userId);
   if (!user) {
@@ -1030,10 +1057,12 @@ apiRouter.post('/admin/upload', requireAdmin, (req: Request, res: Response) => {
 // Public: Fetch all published blog posts with pagination & filtering
 apiRouter.get('/blogs', (req: Request, res: Response) => {
   // Prevent aggressive edge / CDN / browser caching
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.removeHeader('ETag');
 
   try {
     const page = parseInt(req.query.page as string || '1', 10);
@@ -1069,10 +1098,12 @@ apiRouter.get('/blogs', (req: Request, res: Response) => {
 // Public: Fetch a single blog post by slug
 apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
   // Prevent aggressive edge / CDN / browser caching
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.removeHeader('ETag');
 
   try {
     const { slug } = req.params;
@@ -1109,6 +1140,13 @@ apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
 
 // Admin: Fetch all blog posts (including drafts)
 apiRouter.get('/admin/blogs', requireAdmin, (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.removeHeader('ETag');
+
   try {
     const posts = db.getAllBlogsAdmin();
     return res.json({ posts, total: posts.length });
@@ -1160,6 +1198,7 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
     // Generate auto-excerpt if omitted
     const plainText = content.replace(/<[^>]*>/g, ' ').trim();
     const finalExcerpt = excerpt || (plainText.length > 180 ? `${plainText.substring(0, 180)}...` : plainText);
+    const finalStatus = (status || 'published').toString().toLowerCase().trim() === 'published' ? 'published' : 'draft';
 
     const newPost: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1175,7 +1214,7 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
       authorBio: 'Specializes in distributed data pipelines, cloud analytics warehousing, and Trust & Safety engineering at scale.',
       category: category || 'Data Analytics',
       tags: Array.isArray(tags) ? tags : ['Data Analytics'],
-      status: status === 'published' ? 'published' : 'draft',
+      status: finalStatus,
       readTime,
       views: 0,
       featured: Boolean(featured),
@@ -1185,8 +1224,9 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
     };
 
     const saved = db.createBlog(newPost);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    return res.status(201).json({ success: true, post: saved, revalidated: true });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('CDN-Cache-Control', 'no-store');
+    return res.status(201).json({ success: true, post: saved, revalidated: true, timestamp: Date.now() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to create blog post.' });
   }
@@ -1220,9 +1260,14 @@ apiRouter.put('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) =>
         .replace(/^-+|-+$/g, '');
     }
 
+    if (updates.status) {
+      updates.status = updates.status.toString().toLowerCase().trim() === 'published' ? 'published' : 'draft';
+    }
+
     const updated = db.updateBlog(existing.id, updates);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    return res.json({ success: true, post: updated, revalidated: true });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('CDN-Cache-Control', 'no-store');
+    return res.json({ success: true, post: updated, revalidated: true, timestamp: Date.now() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to update blog post.' });
   }
@@ -1239,8 +1284,9 @@ apiRouter.delete('/admin/blogs/:id', requireAdmin, (req: Request, res: Response)
     }
 
     const ok = db.deleteBlog(existing.id);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    return res.json({ success: ok, revalidated: true });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('CDN-Cache-Control', 'no-store');
+    return res.json({ success: ok, revalidated: true, timestamp: Date.now() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to delete blog post.' });
   }

@@ -63,14 +63,53 @@ export const BlogFeedView: React.FC<BlogFeedViewProps> = ({ onNavigate }) => {
       fetchPosts();
     };
 
+    // 1. In-tab custom events
     window.addEventListener('blog-updated', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);
     window.addEventListener('focus', handleUpdate);
+
+    // 2. Cross-tab storage updates
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'codingthunder_blogs') {
+        fetchPosts();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Document visibility change (user returns to tab)
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        fetchPosts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // 4. BroadcastChannel across all open tabs/windows
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('codingthunder_blog_sync');
+        bc.onmessage = () => {
+          fetchPosts();
+        };
+      } catch {}
+    }
+
+    // 5. Background polling every 15s to keep public viewers in sync
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchPosts();
+      }
+    }, 15000);
 
     return () => {
       window.removeEventListener('blog-updated', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
       window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (bc) bc.close();
+      clearInterval(interval);
     };
   }, [selectedCategory, page]);
 

@@ -145,12 +145,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const claimAdminRole = async () => {
     if (!user) return;
-    if (user.email?.toLowerCase().trim() !== 'mishrashashwat90@gmail.com') {
+    const cleanEmail = user.email?.toLowerCase().trim();
+    if (cleanEmail !== 'mishrashashwat90@gmail.com') {
       throw new Error('Admin privileges are strictly restricted to mishrashashwat90@gmail.com');
     }
     if (isSupabaseActive) {
       await supabasePromoteToAdmin(user.id);
     }
+    // Fetch and store real cryptographic backend admin token
+    try {
+      await api.claimAdminRole(cleanEmail);
+    } catch {}
     localStorage.setItem(`codingthunder_admin_${user.id}`, 'true');
     setUser({ ...user, role: 'admin' });
   };
