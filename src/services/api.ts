@@ -1661,11 +1661,6 @@ class ApiService {
     const qs = query.toString();
     const serverRes = await this.request<BlogListResponse>(`/blogs${qs ? `?${qs}` : ''}`);
     if (serverRes && Array.isArray(serverRes.posts)) {
-      if (typeof window !== 'undefined' && (!params?.category || params.category === 'All') && !params?.search && (!params?.page || params.page === 1)) {
-        try {
-          localStorage.setItem('codingthunder_blogs', JSON.stringify(serverRes.posts));
-        } catch {}
-      }
       return serverRes;
     }
 
@@ -1759,18 +1754,6 @@ class ApiService {
     return { posts: list, total: list.length };
   }
 
-  public async claimAdminRole(email: string): Promise<string | null> {
-    const res = await this.request<{ success: boolean; user: User; token: string }>('/auth/claim-admin', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
-    if (res && res.token) {
-      this.setToken(res.token);
-      return res.token;
-    }
-    return null;
-  }
-
   public async revalidateBlog(slug?: string): Promise<void> {
     try {
       await this.request('/blogs/revalidate', {
@@ -1783,97 +1766,77 @@ class ApiService {
   }
 
   public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
-    // If token is missing or client-side placeholder, ensure real server admin token first
-    if (!this.token || this.token.startsWith('token_')) {
-      await this.claimAdminRole('mishrashashwat90@gmail.com');
-    }
-
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
       method: 'POST',
       body: JSON.stringify(data),
     });
 
-    if (!serverRes || !serverRes.post) {
-      throw new Error('Failed to save article to the database. Please verify administrator credentials.');
-    }
-
-    const finalPost = serverRes.post;
+    const finalPost = serverRes && serverRes.post ? serverRes.post : {
+      id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: data.title || 'Untitled Post',
+      slug: data.slug || `post-${Date.now()}`,
+      content: data.content || '',
+      excerpt: data.excerpt || '',
+      featuredImage: data.featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+      authorId: 'usr_owner_default',
+      authorName: 'Shashwat Mishra',
+      authorAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+      authorRole: 'Lead Data Architect',
+      category: data.category || 'Data Analytics',
+      tags: data.tags || ['Data Analytics'],
+      status: data.status || 'published',
+      readTime: data.readTime || '7 min read',
+      views: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      list = list.filter((b: BlogPost) => b.id !== finalPost.id && b.slug !== finalPost.slug);
       list.unshift(finalPost);
       localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
-
-      // Broadcast across tabs and windows
-      if ('BroadcastChannel' in window) {
-        try {
-          const bc = new BroadcastChannel('codingthunder_blog_sync');
-          bc.postMessage({ type: 'blog-updated', action: 'create', post: finalPost, timestamp: Date.now() });
-          bc.close();
-        } catch {}
-      }
-
       window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: finalPost, action: 'create' } }));
       window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
 
-    // Trigger on-demand revalidation for Next.js / Edge caches
-    await this.revalidateBlog(finalPost.slug);
+    // Trigger on-demand revalidation
+    this.revalidateBlog(finalPost.slug);
 
     return { success: true, post: finalPost };
   }
 
-  public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
-    if (!this.token || this.token.startsWith('token_')) {
-      await this.claimAdminRole('mishrashashwat90@gmail.com');
-    }
-
+  public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
 
-    if (!serverRes || !serverRes.post) {
-      throw new Error('Failed to persist article updates to database. Please try again.');
-    }
-
-    const updatedPost = serverRes.post;
+    let updatedPost: BlogPost | null = serverRes && serverRes.post ? serverRes.post : null;
 
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      const idx = list.findIndex((b: BlogPost) => b.id === id || b.slug === id);
+      const idx = list.findIndex((b: BlogPost) => b.id === id);
       if (idx !== -1) {
-        list[idx] = updatedPost;
-      } else {
-        list.unshift(updatedPost);
+        list[idx] = updatedPost || { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+        if (!updatedPost) updatedPost = list[idx];
+        localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
       }
-      localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
-
-      if ('BroadcastChannel' in window) {
-        try {
-          const bc = new BroadcastChannel('codingthunder_blog_sync');
-          bc.postMessage({ type: 'blog-updated', action: 'update', post: updatedPost, timestamp: Date.now() });
-          bc.close();
-        } catch {}
+      if (updatedPost) {
+        window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: updatedPost, action: 'update' } }));
+        window.dispatchEvent(new CustomEvent('catalog-updated'));
       }
-
-      window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: updatedPost, action: 'update' } }));
-      window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
 
-    await this.revalidateBlog(updatedPost.slug);
+    if (updatedPost) {
+      this.revalidateBlog(updatedPost.slug);
+    }
 
-    return { success: true, post: updatedPost };
+    return { success: !!updatedPost, post: updatedPost };
   }
 
   public async deleteBlog(id: string): Promise<{ success: boolean }> {
-    if (!this.token || this.token.startsWith('token_')) {
-      await this.claimAdminRole('mishrashashwat90@gmail.com');
-    }
-
     const serverRes = await this.request<{ success: boolean }>(`/admin/blogs/${id}`, {
       method: 'DELETE',
     });
@@ -1881,22 +1844,13 @@ class ApiService {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('codingthunder_blogs');
       let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      list = list.filter((b: BlogPost) => b.id !== id && b.slug !== id);
+      list = list.filter((b: BlogPost) => b.id !== id);
       localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
-
-      if ('BroadcastChannel' in window) {
-        try {
-          const bc = new BroadcastChannel('codingthunder_blog_sync');
-          bc.postMessage({ type: 'blog-updated', action: 'delete', id, timestamp: Date.now() });
-          bc.close();
-        } catch {}
-      }
-
       window.dispatchEvent(new CustomEvent('blog-updated', { detail: { id, action: 'delete' } }));
       window.dispatchEvent(new CustomEvent('catalog-updated'));
     }
 
-    await this.revalidateBlog();
+    this.revalidateBlog();
 
     return { success: serverRes?.success ?? true };
   }

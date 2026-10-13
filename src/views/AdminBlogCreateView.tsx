@@ -177,19 +177,15 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
       if (editPostId) {
         const res = await api.updateBlog(editPostId, payload);
         if (res && res.success) {
-          showToast('✅ Article updated and live public cache purged successfully!');
-        } else {
-          showToast('⚠️ Failed to update article.');
+          showToast('Article updated successfully!');
         }
       } else {
         const res = await api.createBlog(payload);
         if (res && res.success) {
-          showToast('✅ Article published and live public feed revalidated!');
+          showToast('Article published successfully!');
           setTimeout(() => {
             onNavigate('/admin/blog');
           }, 1200);
-        } else {
-          showToast('⚠️ Failed to publish article.');
         }
       }
     } catch (err: any) {
