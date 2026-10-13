@@ -18,6 +18,10 @@ import { EbooksView } from './views/EbooksView.tsx';
 import { EbookDetailView } from './views/EbookDetailView.tsx';
 import { StudentDashboardView } from './views/StudentDashboardView.tsx';
 import { AdminDashboardView } from './views/AdminDashboardView.tsx';
+import { BlogFeedView } from './views/BlogFeedView.tsx';
+import { BlogPostDetailView } from './views/BlogPostDetailView.tsx';
+import { AdminBlogCreateView } from './views/AdminBlogCreateView.tsx';
+import { AdminBlogListView } from './views/AdminBlogListView.tsx';
 import { LoginView } from './views/LoginView.tsx';
 import { StaticPages } from './views/StaticPages.tsx';
 import { api } from './services/api.ts';
@@ -80,6 +84,28 @@ function AppContent() {
       return <EbookDetailView slugOrId={slugOrId} onNavigate={navigate} />;
     }
 
+    // 3.5. Admin Blog CMS Routes
+    if (currentPath === '/admin/blog/create' || currentPath.startsWith('/admin/blog/create')) {
+      return <AdminBlogCreateView onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/admin/blog/edit/')) {
+      const editPostId = currentPath.replace('/admin/blog/edit/', '');
+      return <AdminBlogCreateView editPostId={editPostId} onNavigate={navigate} />;
+    }
+    if (currentPath === '/admin/blog' || currentPath === '/admin/articles') {
+      return <AdminBlogListView onNavigate={navigate} />;
+    }
+
+    // 3.6. Public Blog Detail Route
+    if (currentPath.startsWith('/blog/') && currentPath !== '/blog/') {
+      const slug = currentPath.replace('/blog/', '');
+      return <BlogPostDetailView slug={slug} onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/articles/') && currentPath !== '/articles/') {
+      const slug = currentPath.replace('/articles/', '');
+      return <BlogPostDetailView slug={slug} onNavigate={navigate} />;
+    }
+
     // 4. Auth Routes (supports /login, /signup, /register and /login?redirectUrl=...)
     if (currentPath === '/login' || currentPath.startsWith('/login?') || currentPath.startsWith('/login/')) {
       return <LoginView initialMode="login" onNavigate={navigate} />;
@@ -96,6 +122,9 @@ function AppContent() {
         return <CoursesView onNavigate={navigate} />;
       case '/tutorials':
         return <TutorialsView onNavigate={navigate} />;
+      case '/blog':
+      case '/articles':
+        return <BlogFeedView onNavigate={navigate} />;
       case '/ebooks':
         return <EbooksView onNavigate={navigate} />;
       case '/dashboard':

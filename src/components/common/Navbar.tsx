@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, BookOpen, Video, FileText, Compass, ShieldCheck, User, LogOut, ChevronDown, Menu, X, Search, Sparkles } from 'lucide-react';
+import { Zap, BookOpen, Video, FileText, Compass, ShieldCheck, User, LogOut, ChevronDown, Menu, X, Search, Sparkles, Newspaper, PenTool } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 
 interface NavbarProps {
@@ -15,6 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
   const navLinks = [
     { label: 'Courses', path: '/courses', icon: Video },
     { label: 'Tutorials', path: '/tutorials', icon: FileText },
+    { label: 'Blog', path: '/blog', icon: Newspaper },
     { label: 'Ebooks', path: '/ebooks', icon: BookOpen },
     { label: 'Roadmaps', path: '/roadmaps', icon: Compass },
     { label: 'About', path: '/about', icon: null },
@@ -123,13 +124,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate }) => {
                       </div>
 
                       {user.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com' && user.role === 'admin' ? (
-                        <button
-                          onClick={() => handleLinkClick('/admin')}
-                          className="w-full text-left px-4 py-2 text-xs text-amber-300 hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Admin Control Center</span>
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleLinkClick('/admin')}
+                            className="w-full text-left px-4 py-2 text-xs text-amber-300 hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Admin Control Center</span>
+                          </button>
+                          <button
+                            onClick={() => handleLinkClick('/admin/blog')}
+                            className="w-full text-left px-4 py-2 text-xs text-amber-300 hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <PenTool className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Admin Blog & Articles CMS</span>
+                          </button>
+                        </>
                       ) : null}
 
                       <button

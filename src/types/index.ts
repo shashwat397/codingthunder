@@ -72,6 +72,14 @@ export interface Course {
   updatedAt: string;
 }
 
+export interface TutorialChapter {
+  id: string;
+  number: number;
+  title: string;
+  summary: string;
+  contentMarkdown: string;
+}
+
 export interface Tutorial {
   id: string;
   slug: string;
@@ -84,6 +92,7 @@ export interface Tutorial {
   views: number;
   tags: string[];
   contentMarkdown: string;
+  chapters?: TutorialChapter[];
   createdAt: string;
   updatedAt: string;
 }
@@ -186,3 +195,6 @@ export interface AuthResponse {
   user: User;
   token: string;
 }
+
+export * from './blog.ts';
+

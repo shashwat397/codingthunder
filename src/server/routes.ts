@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { db, saveUploadedFile, UPLOADS_DIR } from './db.ts';
 import { hashPassword, verifyPassword, createToken, verifyToken, TokenPayload } from './auth.ts';
-import { Course, Tutorial, Ebook, Order } from '../types/index.ts';
+import { Course, Tutorial, Ebook, Order, BlogPost } from '../types/index.ts';
 
 export const apiRouter = Router();
 
@@ -993,25 +993,241 @@ apiRouter.post('/admin/upload-file', requireAdmin, (req: Request, res: Response)
   }
 });
 
-// Asset Upload (Legacy fallback)
+// Asset Upload (Supports base64 data and drag-and-drop editor uploads)
 apiRouter.post('/admin/upload', requireAdmin, (req: Request, res: Response) => {
-  const { fileName, fileType, base64Data } = req.body;
-  if (!fileName || !base64Data) {
-    return res.status(400).json({ error: 'fileName and base64Data are required.' });
+  const { fileName, fileType, base64Data, image } = req.body;
+  const targetData = base64Data || image;
+  const targetName = fileName || `image_${Date.now()}.png`;
+
+  if (!targetData) {
+    return res.status(400).json({ error: 'base64Data or image payload is required.' });
   }
+
   try {
-    const saved = saveUploadedFile(fileName, base64Data, fileType);
+    const saved = saveUploadedFile(targetName, targetData, fileType || 'image/png');
     return res.json({
       success: true,
       url: saved.fileUrl,
       assetId: saved.storedFileName,
+      filename: saved.storedFileName,
     });
   } catch {
     const assetId = `asset_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const url = targetData.startsWith('data:') ? targetData : `data:${fileType || 'image/png'};base64,${targetData}`;
     return res.json({
       success: true,
-      url: base64Data.startsWith('data:') ? base64Data : `data:${fileType || 'image/png'};base64,${base64Data}`,
+      url,
       assetId,
+      filename: targetName,
     });
   }
 });
+
+// ==========================================
+// 8. BLOG & ARTICLE ENGINE ENDPOINTS
+// ==========================================
+
+// Public: Fetch all published blog posts with pagination & filtering
+apiRouter.get('/blogs', (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '10', 10);
+    const category = (req.query.category as string) || undefined;
+    const tag = (req.query.tag as string) || undefined;
+    const search = (req.query.search as string) || undefined;
+
+    const offset = Math.max(0, (page - 1) * limit);
+    const { posts, total } = db.getBlogs({
+      status: 'published',
+      category,
+      tag,
+      search,
+      limit,
+      offset,
+    });
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return res.json({
+      posts,
+      total,
+      page,
+      limit,
+      totalPages,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to fetch blog posts.' });
+  }
+});
+
+// Public: Fetch a single blog post by slug
+apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const post = db.getBlogByIdOrSlug(slug);
+
+    if (!post) {
+      return res.status(404).json({ error: 'Article not found.' });
+    }
+
+    // Only published posts are public, unless requested with admin token
+    if (post.status !== 'published') {
+      const authHeader = req.headers.authorization;
+      let isAdmin = false;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const payload = verifyToken(token);
+        if (payload && payload.role === 'admin' && payload.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com') {
+          isAdmin = true;
+        }
+      }
+      if (!isAdmin) {
+        return res.status(404).json({ error: 'Article not found or not published.' });
+      }
+    }
+
+    // Increment view count
+    db.incrementBlogViews(post.id);
+
+    return res.json({ post });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to retrieve article.' });
+  }
+});
+
+// Admin: Fetch all blog posts (including drafts)
+apiRouter.get('/admin/blogs', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const posts = db.getAllBlogsAdmin();
+    return res.json({ posts, total: posts.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to retrieve admin blog posts.' });
+  }
+});
+
+// Admin: Create a new blog post
+apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const {
+      title,
+      slug,
+      content,
+      excerpt,
+      featuredImage,
+      category,
+      tags,
+      status,
+      seoDescription,
+      featured,
+    } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required to create a post.' });
+    }
+
+    // Auto-generate clean URL slug if not provided
+    const baseSlug = (slug || title)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `post-${Date.now()}`;
+
+    // Ensure uniqueness
+    let finalSlug = baseSlug;
+    let counter = 1;
+    while (db.getBlogByIdOrSlug(finalSlug)) {
+      finalSlug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    // Calculate reading time based on 200 words per minute
+    const wordCount = content.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).length;
+    const minutes = Math.max(1, Math.ceil(wordCount / 200));
+    const readTime = `${minutes} min read`;
+
+    // Generate auto-excerpt if omitted
+    const plainText = content.replace(/<[^>]*>/g, ' ').trim();
+    const finalExcerpt = excerpt || (plainText.length > 180 ? `${plainText.substring(0, 180)}...` : plainText);
+
+    const newPost: BlogPost = {
+      id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      title: title.trim(),
+      slug: finalSlug,
+      content,
+      excerpt: finalExcerpt,
+      featuredImage: featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+      authorId: req.user?.userId || 'usr_owner_default',
+      authorName: 'Shashwat Mishra',
+      authorAvatar: `https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com`,
+      authorRole: 'Lead Data Architect',
+      authorBio: 'Specializes in distributed data pipelines, cloud analytics warehousing, and Trust & Safety engineering at scale.',
+      category: category || 'Data Analytics',
+      tags: Array.isArray(tags) ? tags : ['Data Analytics'],
+      status: status === 'published' ? 'published' : 'draft',
+      readTime,
+      views: 0,
+      featured: Boolean(featured),
+      seoDescription: seoDescription || finalExcerpt,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = db.createBlog(newPost);
+    return res.status(201).json({ success: true, post: saved });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to create blog post.' });
+  }
+});
+
+// Admin: Update an existing blog post
+apiRouter.put('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = db.getBlogByIdOrSlug(id);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Article not found.' });
+    }
+
+    const updates = { ...req.body };
+
+    // Recalculate read time if content changed
+    if (updates.content) {
+      const wordCount = updates.content.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).length;
+      const minutes = Math.max(1, Math.ceil(wordCount / 200));
+      updates.readTime = `${minutes} min read`;
+    }
+
+    // Clean slug if updated
+    if (updates.slug && updates.slug !== existing.slug) {
+      updates.slug = updates.slug
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    const updated = db.updateBlog(existing.id, updates);
+    return res.json({ success: true, post: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update blog post.' });
+  }
+});
+
+// Admin: Delete a blog post
+apiRouter.delete('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = db.getBlogByIdOrSlug(id);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Article not found.' });
+    }
+
+    const ok = db.deleteBlog(existing.id);
+    return res.json({ success: ok });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to delete blog post.' });
+  }
+});
+

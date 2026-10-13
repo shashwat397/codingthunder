@@ -422,6 +422,14 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
             Tutorials ({tutorials.length})
           </button>
           <button
+            onClick={() => onNavigate('/admin/blog')}
+            className="px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer text-amber-300 hover:text-white hover:bg-slate-800 flex items-center gap-1"
+            title="Manage Blog Articles & Rich Text Tutorials"
+          >
+            <span>Articles CMS</span>
+            <ExternalLink className="w-3 h-3 text-amber-400" />
+          </button>
+          <button
             onClick={() => setActiveTab('ebooks')}
             className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
               activeTab === 'ebooks' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'

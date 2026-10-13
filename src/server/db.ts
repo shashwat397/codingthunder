@@ -1,9 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLicense, ContactMessage } from '../types/index.ts';
+import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLicense, ContactMessage, BlogPost } from '../types/index.ts';
 import { getSeedData } from './seed.ts';
 import { hashPassword } from './auth.ts';
+import { POWER_BI_TUTORIAL } from '../data/powerBiTutorialData.ts';
+import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +18,7 @@ export interface DatabaseSchema {
   courses: Course[];
   tutorials: Tutorial[];
   ebooks: Ebook[];
+  blogs?: BlogPost[];
   siteSettings: SiteSettings;
   enrollments: Enrollment[];
   ebookLicenses: EbookLicense[];
@@ -31,6 +34,28 @@ class Database {
     this.ensureDirs();
     this.data = this.load();
     this.ensureDefaultUsers();
+    this.ensureDefaultTutorials();
+    this.ensureDefaultBlogs();
+  }
+
+  private ensureDefaultBlogs() {
+    if (!this.data.blogs || this.data.blogs.length === 0) {
+      this.data.blogs = [...MOCK_BLOG_POSTS];
+      this.save();
+    }
+  }
+
+  private ensureDefaultTutorials() {
+    if (!this.data.tutorials) {
+      this.data.tutorials = [];
+    }
+    const hasPowerBi = this.data.tutorials.some(
+      (t) => t.slug === 'power-bi-notes-and-cheat-sheet' || t.id === 'tut_powerbi_notes_01'
+    );
+    if (!hasPowerBi) {
+      this.data.tutorials.unshift(POWER_BI_TUTORIAL);
+      this.save();
+    }
   }
 
   private ensureDefaultUsers() {
@@ -211,7 +236,12 @@ class Database {
   }
 
   public getTutorialByIdOrSlug(idOrSlug: string) {
-    const tut = this.data.tutorials.find(t => t.id === idOrSlug || t.slug === idOrSlug);
+    const tut = this.data.tutorials.find(
+      (t) =>
+        t.id === idOrSlug ||
+        t.slug === idOrSlug ||
+        (idOrSlug === 'power-bi-notes' && t.slug === 'power-bi-notes-and-cheat-sheet')
+    );
     if (tut) {
       tut.views = (tut.views || 0) + 1;
       this.save();
@@ -282,6 +312,109 @@ class Database {
     this.data.ebooks.splice(idx, 1);
     this.save();
     return true;
+  }
+
+  // --- Blogs & Articles ---
+  public getBlogs(options?: {
+    status?: string;
+    category?: string;
+    tag?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    let list = [...this.data.blogs];
+
+    // Status filter
+    if (options?.status) {
+      list = list.filter(b => b.status === options.status);
+    } else {
+      list = list.filter(b => b.status === 'published');
+    }
+
+    // Category filter
+    if (options?.category && options.category !== 'All') {
+      const cat = options.category.toLowerCase().trim();
+      list = list.filter(b => b.category.toLowerCase().trim() === cat);
+    }
+
+    // Tag filter
+    if (options?.tag) {
+      const tag = options.tag.toLowerCase().trim();
+      list = list.filter(b => b.tags && b.tags.some(t => t.toLowerCase().trim() === tag));
+    }
+
+    // Keyword search
+    if (options?.search) {
+      const q = options.search.toLowerCase().trim();
+      list = list.filter(
+        b =>
+          b.title.toLowerCase().includes(q) ||
+          b.excerpt.toLowerCase().includes(q) ||
+          (b.tags && b.tags.some(t => t.toLowerCase().includes(q))) ||
+          b.content.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort by createdAt descending
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = list.length;
+    const offset = options?.offset || 0;
+    const limit = options?.limit || 10;
+    const paged = list.slice(offset, offset + limit);
+
+    return { posts: paged, total };
+  }
+
+  public getAllBlogsAdmin() {
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    return [...this.data.blogs].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  public getBlogByIdOrSlug(idOrSlug: string): BlogPost | null {
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    return this.data.blogs.find(b => b.id === idOrSlug || b.slug === idOrSlug) || null;
+  }
+
+  public createBlog(post: BlogPost): BlogPost {
+    if (!this.data.blogs) this.data.blogs = [];
+    this.data.blogs.unshift(post);
+    this.save();
+    return post;
+  }
+
+  public updateBlog(id: string, updates: Partial<BlogPost>): BlogPost | null {
+    if (!this.data.blogs) this.data.blogs = [];
+    const idx = this.data.blogs.findIndex(b => b.id === id);
+    if (idx === -1) return null;
+    this.data.blogs[idx] = {
+      ...this.data.blogs[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.save();
+    return this.data.blogs[idx];
+  }
+
+  public deleteBlog(id: string): boolean {
+    if (!this.data.blogs) return false;
+    const idx = this.data.blogs.findIndex(b => b.id === id);
+    if (idx === -1) return false;
+    this.data.blogs.splice(idx, 1);
+    this.save();
+    return true;
+  }
+
+  public incrementBlogViews(idOrSlug: string): void {
+    const post = this.getBlogByIdOrSlug(idOrSlug);
+    if (post) {
+      post.views = (post.views || 0) + 1;
+      this.save();
+    }
   }
 
   // --- Enrollments & Progress ---

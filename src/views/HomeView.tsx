@@ -7,6 +7,7 @@ import { HeroCodeWindow } from '../components/common/HeroCodeWindow.tsx';
 import { TechMarquee } from '../components/common/TechMarquee.tsx';
 import { CareerPathRoadmap } from '../components/common/CareerPathRoadmap.tsx';
 import { Course, Tutorial, Ebook } from '../types/index.ts';
+import { BlogPost } from '../types/blog.ts';
 import { api } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 
@@ -19,19 +20,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const [ebooks, setEbooks] = useState<Ebook[]>([]);
+  const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [cRes, tRes, eRes] = await Promise.all([
+        const [cRes, tRes, eRes, bRes] = await Promise.all([
           api.getCourses(),
           api.getTutorials(),
           api.getEbooks(),
+          api.getBlogs({ limit: 3 }),
         ]);
         setCourses(cRes.courses.slice(0, 3));
         setTutorials(tRes.tutorials.slice(0, 3));
         setEbooks(eRes.ebooks.slice(0, 2));
+        setBlogs(bRes?.posts ? bRes.posts.slice(0, 3) : []);
       } catch (err) {
         console.error('Failed to load homepage data:', err);
       } finally {
@@ -313,30 +317,92 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </button>
         </div>
 
+        {/* Strictly filtered to exactly the 3 primary masterclasses from Tutorials & Cheat Sheets */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {tutorials.map((tut) => (
+          {[
+            {
+              id: 'power-bi',
+              title: 'Power BI: Beginner to Advanced Masterclass',
+              category: 'Business Intelligence',
+              badgeStyle: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+              accentColor: 'text-amber-400',
+              hoverGlow: 'hover:border-amber-500/40 hover:shadow-amber-500/10',
+              readTime: '16 Lessons · 4.5 Hours',
+              reads: '18.4K reads',
+              description:
+                'Master enterprise Business Intelligence from scratch. Complete deep dive into Power Query M transformations, Ralph Kimball Star Schemas, advanced DAX (CALCULATE, SUMX), and Row-Level Security.',
+              tags: ['Star Schema', 'DAX Measures', 'RLS Security'],
+              path: '/tutorials/power-bi-beginner-to-advanced',
+            },
+            {
+              id: 'python',
+              title: 'Python: Beginner to Advanced Complete Course',
+              category: 'Programming & Automation',
+              badgeStyle: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+              accentColor: 'text-emerald-400',
+              hoverGlow: 'hover:border-emerald-500/40 hover:shadow-emerald-500/10',
+              readTime: '18 Lessons · 5.5 Hours',
+              reads: '24.1K reads',
+              description:
+                'From foundational syntax and CPython bytecode execution to object-oriented architectures, memory-efficient generators, decorators, file automation, requests, and high-stakes technical interview prep.',
+              tags: ['CPython Internals', 'OOP Patterns', 'Automation'],
+              path: '/tutorials/python-beginner-to-advanced',
+            },
+            {
+              id: 'data-analytics',
+              title: 'Data Analytics Playbook: Complete Notes',
+              category: 'Data Analytics',
+              badgeStyle: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+              accentColor: 'text-cyan-400',
+              hoverGlow: 'hover:border-cyan-500/40 hover:shadow-cyan-500/10',
+              readTime: '12 Lessons · 4.0 Hours',
+              reads: '16.8K reads',
+              description:
+                'The definitive end-to-end curriculum. Master the 6-stage analytics lifecycle, advanced SQL window functions, relational ER diagrams, Python Pandas data pipelines, IQR outlier detection, and fraud investigation.',
+              tags: ['SQL Window Functions', 'Pandas Pipelines', 'Fraud Capstone'],
+              path: '/tutorials/data-analytics-playbook',
+            },
+          ].map((item) => (
             <div
-              key={tut.id}
-              onClick={() => onNavigate(`/tutorials/${tut.slug}`)}
-              className="p-6 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-slate-700 transition-all cursor-pointer group flex flex-col justify-between"
+              key={item.id}
+              onClick={() => onNavigate(item.path)}
+              className={`p-6 rounded-2xl bg-[#0c101c] border border-slate-800 ${item.hoverGlow} transition-all cursor-pointer group flex flex-col justify-between shadow-xl relative overflow-hidden`}
             >
               <div>
                 <div className="flex items-center justify-between text-xs text-slate-400 font-mono mb-3">
-                  <span className="text-amber-400 font-medium">{tut.category}</span>
-                  <span>{tut.readTime}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-semibold font-mono ${item.badgeStyle}`}>
+                    {item.category}
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <Clock className="w-3 h-3 text-slate-500" />
+                    {item.readTime}
+                  </span>
                 </div>
-                <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors">
-                  {tut.title}
+
+                <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-snug">
+                  {item.title}
                 </h3>
-                <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
-                  {tut.description}
+
+                <p className="text-xs text-slate-400 mt-2.5 line-clamp-3 leading-relaxed">
+                  {item.description}
                 </p>
+
+                <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-800/60">
+                  {item.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
-                <span>{tut.views.toLocaleString()} reads</span>
-                <span className="text-amber-400 font-sans group-hover:underline flex items-center gap-1">
-                  Read Guide <ArrowRight className="w-3.5 h-3.5" />
+                <span>{item.reads}</span>
+                <span className="text-amber-400 font-sans font-semibold group-hover:underline flex items-center gap-1">
+                  Launch Masterclass <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
             </div>
@@ -415,6 +481,96 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       </section>
+
+      {/* 5.5. Engineering Blog & Technical Articles */}
+      {blogs.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+            <div>
+              <span className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Technical Articles & Engineering Insights
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mt-1">
+                Latest Architecture Blueprints & Guides
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                Long-form technical breakdowns, machine learning pipelines, and cloud analytics engineering deep dives.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigate('/blog')}
+              className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+            >
+              <span>Explore All Articles</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {blogs.map((post) => (
+              <div
+                key={post.id}
+                onClick={() => onNavigate(`/blog/${post.slug}`)}
+                className="p-5 rounded-2xl bg-[#0c101c] border border-slate-800 hover:border-amber-500/40 hover:shadow-xl hover:shadow-amber-500/5 transition-all cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative rounded-xl overflow-hidden mb-4 aspect-video bg-slate-900 border border-slate-800">
+                    <img
+                      src={post.featuredImage}
+                      alt={post.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#0a0f1d]/90 backdrop-blur-md border border-amber-500/30 text-amber-300 text-[10px] font-mono font-semibold">
+                        {post.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400 mb-2">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      {post.readTime}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {new Date(post.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+
+                  <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-snug">
+                    {post.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                    {post.excerpt}
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={post.authorAvatar}
+                      alt={post.authorName}
+                      className="w-6 h-6 rounded-full border border-slate-700"
+                    />
+                    <span className="text-xs text-slate-300 font-medium">{post.authorName}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-amber-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    Read Article
+                    <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 6. Testimonials & Placement Stories */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

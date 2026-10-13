@@ -3,6 +3,10 @@ import { ArrowLeft, Clock, Eye, Share2, Check, BookOpen, FileText } from 'lucide
 import { Tutorial } from '../types/index.ts';
 import { api } from '../services/api.ts';
 import { CodeBlock } from '../components/common/CodeBlock.tsx';
+import { PowerBICourseModule } from '../components/powerbi/PowerBICourseModule.tsx';
+import { PythonCourseModule } from '../components/python/PythonCourseModule.tsx';
+import { ExcelCourseModule } from '../components/excel/ExcelCourseModule.tsx';
+import { DataAnalyticsCourseModule } from '../components/dataanalytics/DataAnalyticsCourseModule.tsx';
 
 interface TutorialDetailViewProps {
   slugOrId: string;
@@ -10,6 +14,51 @@ interface TutorialDetailViewProps {
 }
 
 export const TutorialDetailView: React.FC<TutorialDetailViewProps> = ({ slugOrId, onNavigate }) => {
+  // If navigating to the Power BI Masterclass course module, render the dedicated course UI
+  if (
+    slugOrId === 'power-bi-beginner-to-advanced' ||
+    slugOrId === 'power-bi' ||
+    slugOrId === 'power-bi-course' ||
+    slugOrId.toLowerCase().includes('power-bi')
+  ) {
+    return <PowerBICourseModule onNavigate={onNavigate} />;
+  }
+
+  // If navigating to the Python Beginner to Advanced course module, render the dedicated course UI
+  if (
+    slugOrId === 'python-beginner-to-advanced' ||
+    slugOrId === 'python' ||
+    slugOrId === 'python-course' ||
+    slugOrId.toLowerCase().includes('python-beginner') ||
+    slugOrId.toLowerCase().includes('python-course')
+  ) {
+    return <PythonCourseModule onNavigate={onNavigate} />;
+  }
+
+  // If navigating to the Excel Beginner to Advanced course module, render the dedicated course UI
+  if (
+    slugOrId === 'excel-beginner-to-advanced' ||
+    slugOrId === 'excel' ||
+    slugOrId === 'excel-course' ||
+    slugOrId.toLowerCase().includes('excel-beginner') ||
+    slugOrId.toLowerCase().includes('excel-course')
+  ) {
+    return <ExcelCourseModule onNavigate={onNavigate} />;
+  }
+
+  // If navigating to the Data Analytics Playbook course module, render the dedicated course UI
+  if (
+    slugOrId === 'data-analytics-playbook' ||
+    slugOrId === 'data-analytics' ||
+    slugOrId === 'data-analytics-course' ||
+    slugOrId === 'data-analyst-notes' ||
+    slugOrId === 'analytics-playbook' ||
+    slugOrId.toLowerCase().includes('data-analytics') ||
+    slugOrId.toLowerCase().includes('data-analyst') ||
+    slugOrId.toLowerCase().includes('analytics-playbook')
+  ) {
+    return <DataAnalyticsCourseModule onNavigate={onNavigate} />;
+  }
   const [tutorial, setTutorial] = useState<Tutorial | null>(null);
   const [loading, setLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);

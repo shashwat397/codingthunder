@@ -1,4 +1,5 @@
-import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings } from '../types/index.ts';
+import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings, BlogPost, BlogListResponse } from '../types/index.ts';
+import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 import { getSeedData } from '../server/seed.ts';
 import { 
   supabase, 
@@ -1629,6 +1630,211 @@ class ApiService {
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  // --- Blog & Articles ---
+  public async getBlogs(params?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    tag?: string;
+    search?: string;
+  }): Promise<BlogListResponse> {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.category) query.append('category', params.category);
+    if (params?.tag) query.append('tag', params.tag);
+    if (params?.search) query.append('search', params.search);
+
+    const qs = query.toString();
+    const serverRes = await this.request<BlogListResponse>(`/blogs${qs ? `?${qs}` : ''}`);
+    if (serverRes && Array.isArray(serverRes.posts)) {
+      return serverRes;
+    }
+
+    // Local / offline fallback
+    let list = [...MOCK_BLOG_POSTS];
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    list = list.filter((b) => b.status === 'published');
+    if (params?.category && params.category !== 'All') {
+      list = list.filter((b) => b.category.toLowerCase() === params.category!.toLowerCase());
+    }
+    if (params?.tag) {
+      list = list.filter((b) => b.tags && b.tags.some((t) => t.toLowerCase() === params.tag!.toLowerCase()));
+    }
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.excerpt.toLowerCase().includes(q) ||
+          (b.tags && b.tags.some((t) => t.toLowerCase().includes(q)))
+      );
+    }
+
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const total = list.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const offset = (page - 1) * limit;
+
+    return {
+      posts: list.slice(offset, offset + limit),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  public async getBlog(slugOrId: string): Promise<{ post: BlogPost | null }> {
+    const serverRes = await this.request<{ post: BlogPost }>(`/blogs/${slugOrId}`);
+    if (serverRes && serverRes.post) {
+      return serverRes;
+    }
+
+    let list = [...MOCK_BLOG_POSTS];
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const post = list.find((b) => b.slug === slugOrId || b.id === slugOrId) || null;
+    return { post };
+  }
+
+  public async getAdminBlogs(): Promise<{ posts: BlogPost[]; total: number }> {
+    const serverRes = await this.request<{ posts: BlogPost[]; total: number }>('/admin/blogs');
+    if (serverRes && Array.isArray(serverRes.posts)) {
+      return serverRes;
+    }
+
+    let list = [...MOCK_BLOG_POSTS];
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return { posts: list, total: list.length };
+  }
+
+  public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
+    const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (serverRes && serverRes.post) {
+      return serverRes;
+    }
+
+    // Local fallback
+    const newPost: BlogPost = {
+      id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: data.title || 'Untitled Post',
+      slug: data.slug || `post-${Date.now()}`,
+      content: data.content || '',
+      excerpt: data.excerpt || '',
+      featuredImage: data.featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+      authorId: 'usr_owner_default',
+      authorName: 'Shashwat Mishra',
+      authorAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+      authorRole: 'Lead Data Architect',
+      category: data.category || 'Data Analytics',
+      tags: data.tags || ['Data Analytics'],
+      status: data.status || 'published',
+      readTime: data.readTime || '7 min read',
+      views: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
+      list.unshift(newPost);
+      localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
+    }
+
+    return { success: true, post: newPost };
+  }
+
+  public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
+    const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    if (serverRes && serverRes.post) {
+      return serverRes;
+    }
+
+    let updatedPost: BlogPost | null = null;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
+      const idx = list.findIndex((b: BlogPost) => b.id === id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+        updatedPost = list[idx];
+        localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
+      }
+    }
+    return { success: !!updatedPost, post: updatedPost };
+  }
+
+  public async deleteBlog(id: string): Promise<{ success: boolean }> {
+    const serverRes = await this.request<{ success: boolean }>(`/admin/blogs/${id}`, {
+      method: 'DELETE',
+    });
+    if (serverRes && typeof serverRes.success === 'boolean') {
+      return serverRes;
+    }
+
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('codingthunder_blogs');
+      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
+      list = list.filter((b: BlogPost) => b.id !== id);
+      localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
+    }
+    return { success: true };
+  }
+
+  public async uploadBlogImage(fileName: string, base64Data: string, fileType = 'image/png'): Promise<{ url: string; success: boolean }> {
+    const serverRes = await this.request<{ success: boolean; url: string }>('/admin/upload', {
+      method: 'POST',
+      body: JSON.stringify({ fileName, fileType, base64Data }),
+    });
+    if (serverRes && serverRes.url) {
+      return serverRes;
+    }
+    return {
+      success: true,
+      url: base64Data.startsWith('data:') ? base64Data : `data:${fileType};base64,${base64Data}`,
+    };
   }
 }
 

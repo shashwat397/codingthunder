@@ -77,6 +77,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
+                <button onClick={() => onNavigate('/blog')} className="hover:text-amber-300 transition-colors cursor-pointer font-semibold text-amber-400">
+                  Engineering Blog & Articles
+                </button>
+              </li>
+              <li>
                 <button onClick={() => onNavigate('/tutorials')} className="hover:text-amber-300 transition-colors cursor-pointer">
                   Python 3 Cheat Sheet
                 </button>

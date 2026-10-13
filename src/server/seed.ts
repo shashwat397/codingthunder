@@ -21,6 +21,21 @@ export function getSeedData() {
 
   const tutorials: Tutorial[] = [
     {
+      id: 'tut_pbi_01',
+      slug: 'power-bi-beginner-to-advanced',
+      title: 'Power BI: Beginner to Advanced Masterclass',
+      description: 'Massive 16-chapter curriculum covering the Power BI Ecosystem, Power Query M code, Ralph Kimball Star Schemas, DAX calculations (CALCULATE, SUMX, Time Intelligence), RLS/OLS security, and VertiPaq optimization.',
+      category: 'Power BI',
+      readTime: '3.5 hrs course',
+      published: true,
+      featured: true,
+      views: 58400,
+      tags: ['Power BI', 'DAX', 'Power Query', 'Data Modeling', 'Business Intelligence'],
+      contentMarkdown: `# Power BI: Beginner to Advanced Masterclass\n\nFull 16-chapter interactive course module available in the course player.`,
+      createdAt: '2026-02-01T00:00:00.000Z',
+      updatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    {
       id: 'tut_py_01',
       slug: 'python-3-ultimate-cheatsheet-and-reference',
       title: 'Python 3 Ultimate Cheat Sheet & Syntax Reference',
