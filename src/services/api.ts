@@ -83,26 +83,31 @@ class ApiService {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    // Always include admin identity header on admin endpoints
+    if (endpoint.startsWith('/admin')) {
+      headers['x-admin-email'] = 'mishrashashwat90@gmail.com';
+    }
+
+    // Add cache buster timestamp for GET requests to strictly prevent browser or edge proxy caching
+    let url = `/api${endpoint}`;
+    if (!options.method || options.method === 'GET') {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}_t=${Date.now()}`;
+    }
+
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        ...(options.headers as Record<string, string>),
-      };
-
-      if (this.token) {
-        headers['Authorization'] = `Bearer ${this.token}`;
-      }
-
-      // Add cache buster timestamp for GET requests to strictly prevent browser or edge proxy caching
-      let url = `/api${endpoint}`;
-      if (!options.method || options.method === 'GET') {
-        const separator = url.includes('?') ? '&' : '?';
-        url = `${url}${separator}_t=${Date.now()}`;
-      }
-
       const response = await fetch(url, {
         cache: 'no-store', // Next.js and modern fetch cache-breaker
         ...options,
@@ -112,16 +117,33 @@ class ApiService {
       const contentType = response.headers.get('content-type') || '';
       // If server returned HTML (e.g. SPA rewrite on Vercel), it is not a JSON API response
       if (contentType.includes('text/html')) {
+        console.warn(`[API] Server returned HTML for ${url}`);
+        if (options.method && options.method !== 'GET') {
+          throw new Error(`API endpoint returned HTML instead of JSON for ${url} (HTTP ${response.status}). Ensure the backend server is running and /api is mounted.`);
+        }
         return null;
       }
 
       if (!response.ok) {
-        return null;
+        let errMessage = `HTTP ${response.status} (${response.statusText})`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) {
+            errMessage = errData.error;
+          }
+        } catch {}
+        console.error(`[API Error] ${options.method || 'GET'} ${url} returned ${response.status}:`, errMessage);
+        const err = new Error(errMessage);
+        (err as any).status = response.status;
+        throw err;
       }
 
       const data = await response.json();
       return data as T;
-    } catch {
+    } catch (err: any) {
+      if (options.method && options.method !== 'GET') {
+        throw err; // For mutations, always throw so callers surface the real error
+      }
       return null;
     }
   }
@@ -1784,27 +1806,62 @@ class ApiService {
   }
 
   public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
-    // 1. Persist directly to shared backend database
-    const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    let savedPost: BlogPost | null = null;
+    let backendError: Error | null = null;
 
-    if (!serverRes || !serverRes.post) {
+    // 1. Persist directly to shared backend database
+    try {
+      const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (serverRes && serverRes.post) {
+        savedPost = serverRes.post;
+      }
+    } catch (err: any) {
+      console.warn('[createBlog] Backend server request failed:', err.message);
+      backendError = err;
+    }
+
+    // 2. Also persist to Supabase if configured (or as primary failover)
+    if (isSupabaseConfigured()) {
+      try {
+        const postToSave: BlogPost = savedPost || {
+          id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          title: (data.title || 'Untitled Post').trim(),
+          slug: data.slug || `post-${Date.now()}`,
+          content: data.content || '',
+          excerpt: data.excerpt || '',
+          featuredImage: data.featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+          authorId: 'usr_owner_default',
+          authorName: 'Shashwat Mishra',
+          authorAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+          authorRole: 'Lead Data Architect',
+          category: data.category || 'Data Analytics',
+          tags: data.tags || ['Data Analytics'],
+          status: (data.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published',
+          readTime: data.readTime || '5 min read',
+          views: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        const sbRes = await supabaseSaveBlog(postToSave);
+        if (sbRes.success && !savedPost) {
+          savedPost = postToSave;
+        }
+      } catch (sbErr) {
+        console.error('[Supabase Blogs] Error saving to Supabase:', sbErr);
+      }
+    }
+
+    if (!savedPost) {
+      if (backendError) {
+        throw backendError;
+      }
       throw new Error('Failed to save article to backend server.');
     }
 
-    const finalPost: BlogPost = serverRes.post;
-
-    // 2. Also persist to Supabase if configured
-    if (isSupabaseConfigured()) {
-      try {
-        await supabaseSaveBlog(finalPost);
-        console.log('[DEBUG_CLIENT] createBlog synced to Supabase:', { id: finalPost.id, slug: finalPost.slug });
-      } catch (err) {
-        console.error('[DEBUG_CLIENT] Error saving blog to Supabase:', err);
-      }
-    }
+    const finalPost: BlogPost = savedPost;
 
     // 3. Broadcast real-time update events across all open windows & tabs
     if (typeof window !== 'undefined') {
@@ -1827,26 +1884,59 @@ class ApiService {
   }
 
   public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
-    // 1. Send update directly to shared backend database
-    const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+    let updatedPost: BlogPost | null = null;
+    let backendError: Error | null = null;
 
-    if (!serverRes || !serverRes.post) {
-      throw new Error('Failed to update article on backend server.');
+    // 1. Send update directly to shared backend database
+    try {
+      const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      if (serverRes && serverRes.post) {
+        updatedPost = serverRes.post;
+      }
+    } catch (err: any) {
+      console.warn('[updateBlog] Backend server request failed:', err.message);
+      backendError = err;
     }
 
-    const updatedPost: BlogPost = serverRes.post;
-
-    // 2. Persist to Supabase if configured
+    // 2. Also persist to Supabase if configured
     if (isSupabaseConfigured()) {
       try {
-        await supabaseSaveBlog(updatedPost);
-        console.log('[DEBUG_CLIENT] updateBlog synced to Supabase:', { id: updatedPost.id });
-      } catch (err) {
-        console.error('[DEBUG_CLIENT] Error updating blog in Supabase:', err);
+        const postToUpdate: BlogPost = updatedPost || {
+          id,
+          title: (data.title || 'Untitled Post').trim(),
+          slug: data.slug || `post-${Date.now()}`,
+          content: data.content || '',
+          excerpt: data.excerpt || '',
+          featuredImage: data.featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+          authorId: 'usr_owner_default',
+          authorName: 'Shashwat Mishra',
+          authorAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
+          authorRole: 'Lead Data Architect',
+          category: data.category || 'Data Analytics',
+          tags: data.tags || ['Data Analytics'],
+          status: (data.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published',
+          readTime: data.readTime || '5 min read',
+          views: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        const sbRes = await supabaseSaveBlog(postToUpdate);
+        if (sbRes.success && !updatedPost) {
+          updatedPost = postToUpdate;
+        }
+      } catch (sbErr) {
+        console.error('[Supabase Blogs] Error updating in Supabase:', sbErr);
       }
+    }
+
+    if (!updatedPost) {
+      if (backendError) {
+        throw backendError;
+      }
+      throw new Error('Failed to update article on backend server.');
     }
 
     // 3. Broadcast real-time update events
