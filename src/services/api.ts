@@ -1,5 +1,4 @@
 import { User, Course, Tutorial, Ebook, Order, Enrollment, SiteSettings, BlogPost, BlogPostStatus, BlogListResponse } from '../types/index.ts';
-import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 import { getSeedData } from '../server/seed.ts';
 import { 
   supabase, 
@@ -272,6 +271,22 @@ class ApiService {
     const fakeToken = `token_${Date.now()}`;
     this.setToken(fakeToken);
     return { user: fallbackUser, token: fakeToken };
+  }
+
+  public async claimAdminRole(email: string): Promise<{ success: boolean; token?: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail !== 'mishrashashwat90@gmail.com') {
+      return { success: false };
+    }
+    const res = await this.request<{ success: boolean; token: string }>('/auth/claim-admin', {
+      method: 'POST',
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+    if (res && res.token) {
+      this.setToken(res.token);
+      return res;
+    }
+    return { success: true };
   }
 
   public async register(name: string, email: string, password: string): Promise<{ user: User; token: string }> {
@@ -1668,7 +1683,7 @@ class ApiService {
           page,
           limit,
         });
-        if (sbRes && sbRes.posts.length > 0) {
+        if (sbRes) {
           const totalPages = Math.ceil(sbRes.total / limit) || 1;
           console.log('[DEBUG_CLIENT] getBlogs loaded from Supabase:', { count: sbRes.posts.length, total: sbRes.total });
           return {
@@ -1680,11 +1695,11 @@ class ApiService {
           };
         }
       } catch (err) {
-        console.warn('[DEBUG_CLIENT] Supabase getBlogs error, falling back to server API:', err);
+        console.warn('[DEBUG_CLIENT] Supabase getBlogs error, querying server API:', err);
       }
     }
 
-    // 2. Query server API endpoint
+    // 2. Query persistent server API endpoint
     const query = new URLSearchParams();
     if (params?.page) query.append('page', params.page.toString());
     if (params?.limit) query.append('limit', params.limit.toString());
@@ -1699,48 +1714,14 @@ class ApiService {
       return serverRes;
     }
 
-    // 3. Local / offline fallback
-    console.warn('[DEBUG_CLIENT] getBlogs falling back to local storage cache');
-    let list = [...MOCK_BLOG_POSTS];
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    list = list.filter((b) => (b.status || 'published').toLowerCase() === 'published');
-    if (params?.category && params.category !== 'All') {
-      list = list.filter((b) => b.category.toLowerCase() === params.category!.toLowerCase());
-    }
-    if (params?.tag) {
-      list = list.filter((b) => b.tags && b.tags.some((t) => t.toLowerCase() === params.tag!.toLowerCase()));
-    }
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      list = list.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          b.excerpt.toLowerCase().includes(q) ||
-          (b.tags && b.tags.some((t) => t.toLowerCase().includes(q)))
-      );
-    }
-
-    const total = list.length;
-    const totalPages = Math.ceil(total / limit) || 1;
-    const offset = (page - 1) * limit;
-
+    // 3. Clean empty state (never fall back to hardcoded mock blogs or isolated localStorage)
+    console.warn('[DEBUG_CLIENT] getBlogs returned empty / offline state');
     return {
-      posts: list.slice(offset, offset + limit),
-      total,
+      posts: [],
+      total: 0,
       page,
       limit,
-      totalPages,
+      totalPages: 1,
     };
   }
 
@@ -1765,22 +1746,7 @@ class ApiService {
       return serverRes;
     }
 
-    // 3. Fallback
-    let list = [...MOCK_BLOG_POSTS];
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    const post = list.find((b) => b.slug === slugOrId || b.id === slugOrId) || null;
-    return { post };
+    return { post: null };
   }
 
   public async getAdminBlogs(): Promise<{ posts: BlogPost[]; total: number }> {
@@ -1788,7 +1754,7 @@ class ApiService {
     if (isSupabaseConfigured()) {
       try {
         const sbRes = await supabaseGetBlogs({ all: true, limit: 100 });
-        if (sbRes && sbRes.posts.length > 0) {
+        if (sbRes) {
           console.log('[DEBUG_CLIENT] getAdminBlogs loaded from Supabase:', { count: sbRes.posts.length });
           return { posts: sbRes.posts, total: sbRes.total };
         }
@@ -1803,20 +1769,7 @@ class ApiService {
       return serverRes;
     }
 
-    // 3. Fallback
-    let list = [...MOCK_BLOG_POSTS];
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return { posts: list, total: list.length };
+    return { posts: [], total: 0 };
   }
 
   public async revalidateBlog(slug?: string): Promise<void> {
@@ -1831,51 +1784,39 @@ class ApiService {
   }
 
   public async createBlog(data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost }> {
-    // 1. Persist to server API
+    // 1. Persist directly to shared backend database
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>('/admin/blogs', {
       method: 'POST',
       body: JSON.stringify(data),
     });
 
-    const fallbackStatus: BlogPostStatus = (data.status || 'published').toLowerCase() === 'draft' ? 'draft' : 'published';
-    const finalPost: BlogPost = serverRes && serverRes.post ? serverRes.post : {
-      id: `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      title: data.title || 'Untitled Post',
-      slug: data.slug || `post-${Date.now()}`,
-      content: data.content || '',
-      excerpt: data.excerpt || '',
-      featuredImage: data.featuredImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
-      authorId: 'usr_owner_default',
-      authorName: 'Shashwat Mishra',
-      authorAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=mishrashashwat90@gmail.com',
-      authorRole: 'Lead Data Architect',
-      category: data.category || 'Data Analytics',
-      tags: data.tags || ['Data Analytics'],
-      status: fallbackStatus,
-      readTime: data.readTime || '7 min read',
-      views: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (!serverRes || !serverRes.post) {
+      throw new Error('Failed to save article to backend server.');
+    }
 
-    // 2. Persist to Supabase if configured
+    const finalPost: BlogPost = serverRes.post;
+
+    // 2. Also persist to Supabase if configured
     if (isSupabaseConfigured()) {
       try {
         await supabaseSaveBlog(finalPost);
-        console.log('[DEBUG_CLIENT] createBlog synced to Supabase successfully:', { id: finalPost.id, slug: finalPost.slug });
+        console.log('[DEBUG_CLIENT] createBlog synced to Supabase:', { id: finalPost.id, slug: finalPost.slug });
       } catch (err) {
         console.error('[DEBUG_CLIENT] Error saving blog to Supabase:', err);
       }
     }
 
-    // 3. Update localStorage cache & dispatch events
+    // 3. Broadcast real-time update events across all open windows & tabs
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      list.unshift(finalPost);
-      localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
       window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: finalPost, action: 'create' } }));
       window.dispatchEvent(new CustomEvent('catalog-updated'));
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('codingthunder_blog_sync');
+          bc.postMessage({ action: 'create', post: finalPost });
+          bc.close();
+        } catch {}
+      }
     }
 
     // 4. Trigger on-demand revalidation
@@ -1886,46 +1827,44 @@ class ApiService {
   }
 
   public async updateBlog(id: string, data: Partial<BlogPost>): Promise<{ success: boolean; post: BlogPost | null }> {
-    // 1. Send update to server API
+    // 1. Send update directly to shared backend database
     const serverRes = await this.request<{ success: boolean; post: BlogPost }>(`/admin/blogs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
 
-    let updatedPost: BlogPost | null = serverRes && serverRes.post ? serverRes.post : null;
-
-    // 2. Update local storage
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      const idx = list.findIndex((b: BlogPost) => b.id === id);
-      if (idx !== -1) {
-        list[idx] = updatedPost || { ...list[idx], ...data, updatedAt: new Date().toISOString() };
-        if (!updatedPost) updatedPost = list[idx];
-        localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
-      }
-      if (updatedPost) {
-        window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: updatedPost, action: 'update' } }));
-        window.dispatchEvent(new CustomEvent('catalog-updated'));
-      }
+    if (!serverRes || !serverRes.post) {
+      throw new Error('Failed to update article on backend server.');
     }
 
-    // 3. Persist to Supabase if configured
-    if (updatedPost && isSupabaseConfigured()) {
+    const updatedPost: BlogPost = serverRes.post;
+
+    // 2. Persist to Supabase if configured
+    if (isSupabaseConfigured()) {
       try {
         await supabaseSaveBlog(updatedPost);
-        console.log('[DEBUG_CLIENT] updateBlog synced to Supabase successfully:', { id: updatedPost.id });
+        console.log('[DEBUG_CLIENT] updateBlog synced to Supabase:', { id: updatedPost.id });
       } catch (err) {
         console.error('[DEBUG_CLIENT] Error updating blog in Supabase:', err);
       }
     }
 
-    if (updatedPost) {
-      this.revalidateBlog(updatedPost.slug);
+    // 3. Broadcast real-time update events
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('blog-updated', { detail: { post: updatedPost, action: 'update' } }));
+      window.dispatchEvent(new CustomEvent('catalog-updated'));
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('codingthunder_blog_sync');
+          bc.postMessage({ action: 'update', post: updatedPost });
+          bc.close();
+        } catch {}
+      }
     }
 
+    this.revalidateBlog(updatedPost.slug);
     console.log('[DEBUG_CLIENT] updateBlog finalized:', { id, updatedPost });
-    return { success: !!updatedPost, post: updatedPost };
+    return { success: true, post: updatedPost };
   }
 
   public async deleteBlog(id: string): Promise<{ success: boolean }> {
@@ -1944,14 +1883,17 @@ class ApiService {
       }
     }
 
-    // 3. Remove from localStorage
+    // 3. Broadcast real-time deletion events
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('codingthunder_blogs');
-      let list = stored ? JSON.parse(stored) : [...MOCK_BLOG_POSTS];
-      list = list.filter((b: BlogPost) => b.id !== id);
-      localStorage.setItem('codingthunder_blogs', JSON.stringify(list));
       window.dispatchEvent(new CustomEvent('blog-updated', { detail: { id, action: 'delete' } }));
       window.dispatchEvent(new CustomEvent('catalog-updated'));
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('codingthunder_blog_sync');
+          bc.postMessage({ action: 'delete', id });
+          bc.close();
+        } catch {}
+      }
     }
 
     this.revalidateBlog();

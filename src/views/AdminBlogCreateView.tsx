@@ -319,7 +319,7 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Article Title: e.g. Building Predictive Models in Google Colab..."
+              placeholder="Article Title: e.g. Modern Data Lakehouse Architecture with Apache Iceberg..."
               className="w-full px-4 py-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-lg sm:text-xl font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
             />
 

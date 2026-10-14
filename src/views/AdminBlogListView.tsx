@@ -59,6 +59,31 @@ export const AdminBlogListView: React.FC<AdminBlogListViewProps> = ({ onNavigate
 
   useEffect(() => {
     fetchPosts();
+
+    const handleUpdate = () => {
+      fetchPosts();
+    };
+
+    window.addEventListener('blog-updated', handleUpdate);
+    window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('codingthunder_blog_sync');
+        bc.onmessage = () => {
+          fetchPosts();
+        };
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener('blog-updated', handleUpdate);
+      window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      if (bc) bc.close();
+    };
   }, []);
 
   const confirmDelete = async () => {

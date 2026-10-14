@@ -146,6 +146,35 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   return res.json({ user, token });
 });
 
+// Admin Claim Endpoint
+apiRouter.post('/auth/claim-admin', (req: Request, res: Response) => {
+  const { email } = req.body || {};
+  const cleanEmail = String(email || '').toLowerCase().trim();
+  if (cleanEmail !== 'mishrashashwat90@gmail.com') {
+    return res.status(403).json({ error: 'Admin privileges are strictly restricted to mishrashashwat90@gmail.com.' });
+  }
+
+  let rawUser = db.getUserByEmail(cleanEmail);
+  if (!rawUser) {
+    db.createUser({
+      id: 'usr_owner_default',
+      name: 'Shashwat Mishra',
+      email: cleanEmail,
+      passwordHash: hashPassword('AdminPass2026!'),
+      role: 'admin',
+      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      createdAt: new Date().toISOString(),
+    });
+    rawUser = db.getUserByEmail(cleanEmail);
+  } else if (rawUser.role !== 'admin') {
+    db.updateUser(rawUser.id, { role: 'admin' });
+    rawUser.role = 'admin';
+  }
+
+  const token = createToken({ userId: rawUser?.id || 'usr_owner_default', email: cleanEmail, role: 'admin' });
+  return res.json({ success: true, token, role: 'admin' });
+});
+
 // Google Account Sign-In / OAuth endpoint
 apiRouter.post('/auth/google', (req: Request, res: Response) => {
   const { email, name, avatar, googleId } = req.body;

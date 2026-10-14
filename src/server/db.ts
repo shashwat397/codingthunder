@@ -5,7 +5,6 @@ import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLi
 import { getSeedData } from './seed.ts';
 import { hashPassword } from './auth.ts';
 import { POWER_BI_TUTORIAL } from '../data/powerBiTutorialData.ts';
-import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,9 +38,9 @@ class Database {
   }
 
   private ensureDefaultBlogs() {
-    if (!this.data.blogs || this.data.blogs.length === 0) {
-      this.data.blogs = [...MOCK_BLOG_POSTS];
-      this.save();
+    if (!Array.isArray(this.data.blogs)) {
+      this.data.blogs = [];
+      this.saveSync();
     }
   }
 
@@ -106,10 +105,14 @@ class Database {
     try {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.blogs)) {
+        parsed.blogs = [];
+      }
       return parsed;
     } catch (err) {
       console.error('[DB] Error reading database.json, re-seeding:', err);
-      const seed = getSeedData();
+      const seed = getSeedData() as DatabaseSchema;
+      seed.blogs = [];
       fs.writeFileSync(DB_FILE, JSON.stringify(seed, null, 2), 'utf-8');
       return seed;
     }
@@ -337,7 +340,7 @@ class Database {
     limit?: number;
     offset?: number;
   }) {
-    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
     let list = [...this.data.blogs];
 
     // Status filter - resilient case-insensitive matching
@@ -385,14 +388,14 @@ class Database {
   }
 
   public getAllBlogsAdmin() {
-    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
     return [...this.data.blogs].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }
 
   public getBlogByIdOrSlug(idOrSlug: string): BlogPost | null {
-    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
+    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
     return this.data.blogs.find(b => b.id === idOrSlug || b.slug === idOrSlug) || null;
   }
 
