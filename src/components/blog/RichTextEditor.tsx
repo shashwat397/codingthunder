@@ -25,6 +25,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { compressImage } from '../../utils/imageCompressor.ts';
 
 interface RichTextEditorProps {
   value: string;
@@ -90,18 +91,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const processImageFile = async (file: File) => {
     setIsUploadingImage(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = (reader.result as string) || '';
-        const res = await api.uploadBlogImage(file.name, base64Data, file.type);
-        if (res && res.url) {
-          insertImageHtml(res.url, file.name);
-        }
-        setIsUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
+      // Compress client-side to max 1200px width at 0.75 JPEG quality for fast Supabase persistence
+      const compressedDataUrl = await compressImage(file, 1200, 0.75);
+      insertImageHtml(compressedDataUrl, file.name);
     } catch (err) {
-      console.error('Image upload failed:', err);
+      console.error('Image compression failed:', err);
+    } finally {
       setIsUploadingImage(false);
     }
   };
