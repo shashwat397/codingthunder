@@ -63,45 +63,13 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 
 // Middleware: Require admin role (strictly restricted ONLY to mishrashashwat90@gmail.com)
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // 1. Direct authenticated user payload from JWT
   if (
     req.user &&
     req.user.role === 'admin' &&
-    req.user.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
+    req.user.email.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
   ) {
     return next();
   }
-
-  // 2. Direct Bearer token inspection
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const payload = verifyToken(token);
-    if (
-      payload &&
-      payload.role === 'admin' &&
-      payload.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
-    ) {
-      req.user = payload;
-      return next();
-    }
-  }
-
-  // 3. Fallback: verified admin email header
-  const adminEmailHeader = req.headers['x-admin-email'];
-  if (
-    typeof adminEmailHeader === 'string' &&
-    adminEmailHeader.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
-  ) {
-    req.user = {
-      userId: 'usr_owner_default',
-      email: 'mishrashashwat90@gmail.com',
-      role: 'admin',
-      exp: Math.floor(Date.now() / 1000) + 86400 * 30,
-    };
-    return next();
-  }
-
   return res.status(403).json({
     error: 'Access denied: Administrator privileges are strictly restricted to mishrashashwat90@gmail.com.',
   });
