@@ -5,6 +5,7 @@ import { Course, Tutorial, Ebook, SiteSettings, User, Order, Enrollment, EbookLi
 import { getSeedData } from './seed.ts';
 import { hashPassword } from './auth.ts';
 import { POWER_BI_TUTORIAL } from '../data/powerBiTutorialData.ts';
+import { MOCK_BLOG_POSTS } from '../data/mockBlogs.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,9 +39,9 @@ class Database {
   }
 
   private ensureDefaultBlogs() {
-    if (!Array.isArray(this.data.blogs)) {
-      this.data.blogs = [];
-      this.saveSync();
+    if (!this.data.blogs || this.data.blogs.length === 0) {
+      this.data.blogs = [...MOCK_BLOG_POSTS];
+      this.save();
     }
   }
 
@@ -105,14 +106,10 @@ class Database {
     try {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed.blogs)) {
-        parsed.blogs = [];
-      }
       return parsed;
     } catch (err) {
       console.error('[DB] Error reading database.json, re-seeding:', err);
-      const seed = getSeedData() as DatabaseSchema;
-      seed.blogs = [];
+      const seed = getSeedData();
       fs.writeFileSync(DB_FILE, JSON.stringify(seed, null, 2), 'utf-8');
       return seed;
     }
@@ -340,16 +337,14 @@ class Database {
     limit?: number;
     offset?: number;
   }) {
-    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     let list = [...this.data.blogs];
 
-    // Status filter - resilient case-insensitive matching
-    const targetStatus = (options?.status || 'published').toLowerCase().trim();
-    if (targetStatus !== 'all') {
-      list = list.filter(b => {
-        const s = (b.status || 'published').toLowerCase().trim();
-        return s === targetStatus;
-      });
+    // Status filter
+    if (options?.status) {
+      list = list.filter(b => b.status === options.status);
+    } else {
+      list = list.filter(b => b.status === 'published');
     }
 
     // Category filter
@@ -388,14 +383,14 @@ class Database {
   }
 
   public getAllBlogsAdmin() {
-    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     return [...this.data.blogs].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }
 
   public getBlogByIdOrSlug(idOrSlug: string): BlogPost | null {
-    if (!Array.isArray(this.data.blogs)) this.data.blogs = [];
+    if (!this.data.blogs) this.data.blogs = [...MOCK_BLOG_POSTS];
     return this.data.blogs.find(b => b.id === idOrSlug || b.slug === idOrSlug) || null;
   }
 

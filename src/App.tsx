@@ -27,8 +27,6 @@ import { StaticPages } from './views/StaticPages.tsx';
 import { api } from './services/api.ts';
 import { SiteSettings } from './types/index.ts';
 import { X, Sparkles, Zap } from 'lucide-react';
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 
 function AppContent() {
   const { user } = useAuth();
@@ -188,8 +186,6 @@ export default function App() {
   return (
     <AuthProvider>
       <AppContent />
-      <Analytics />
-      <SpeedInsights />
     </AuthProvider>
   );
 }

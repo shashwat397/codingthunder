@@ -63,53 +63,14 @@ export const BlogFeedView: React.FC<BlogFeedViewProps> = ({ onNavigate }) => {
       fetchPosts();
     };
 
-    // 1. In-tab custom events
     window.addEventListener('blog-updated', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);
     window.addEventListener('focus', handleUpdate);
-
-    // 2. Cross-tab storage updates
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'codingthunder_blogs') {
-        fetchPosts();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
-    // 3. Document visibility change (user returns to tab)
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        fetchPosts();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    // 4. BroadcastChannel across all open tabs/windows
-    let bc: BroadcastChannel | null = null;
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        bc = new BroadcastChannel('codingthunder_blog_sync');
-        bc.onmessage = () => {
-          fetchPosts();
-        };
-      } catch {}
-    }
-
-    // 5. Background polling every 15s to keep public viewers in sync
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchPosts();
-      }
-    }, 15000);
 
     return () => {
       window.removeEventListener('blog-updated', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
       window.removeEventListener('focus', handleUpdate);
-      window.removeEventListener('storage', handleStorage);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      if (bc) bc.close();
-      clearInterval(interval);
     };
   }, [selectedCategory, page]);
 
@@ -268,29 +229,21 @@ export const BlogFeedView: React.FC<BlogFeedViewProps> = ({ onNavigate }) => {
           ))}
         </div>
       ) : displayPosts.length === 0 ? (
-        <div className="text-center py-20 bg-[#0a0f19] border border-slate-800 rounded-3xl p-8 space-y-4 max-w-2xl mx-auto shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-amber-400">
-            <BookOpen className="w-8 h-8" />
-          </div>
-          <h3 className="text-xl font-bold text-white">
-            {!search && selectedCategory === 'All' ? 'No articles published yet' : 'No matching articles found'}
-          </h3>
-          <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-            {!search && selectedCategory === 'All'
-              ? 'New engineering blueprints, analytics tutorials, and machine learning guides will appear here as soon as they are published in the Admin CMS.'
-              : 'Try adjusting your search criteria or switching to a different category filter.'}
+        <div className="text-center py-16 bg-[#0a0f19] border border-slate-800 rounded-3xl p-8 space-y-3">
+          <BookOpen className="w-12 h-12 text-slate-600 mx-auto" />
+          <h3 className="text-lg font-bold text-white">No articles found</h3>
+          <p className="text-xs text-slate-400">
+            Try adjusting your search criteria or browsing another category.
           </p>
-          {(search || selectedCategory !== 'All') && (
-            <button
-              onClick={() => {
-                setSelectedCategory('All');
-                setSearch('');
-              }}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer transition shadow-lg shadow-amber-500/20"
-            >
-              Clear Filters
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setSelectedCategory('All');
+              setSearch('');
+            }}
+            className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs cursor-pointer"
+          >
+            Clear Filters
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

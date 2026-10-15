@@ -21,7 +21,6 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../services/api.ts';
 import { BlogPost, BlogPostStatus } from '../types/blog.ts';
 import { RichTextEditor } from '../components/blog/RichTextEditor.tsx';
-import { compressImage } from '../utils/imageCompressor.ts';
 
 interface AdminBlogCreateViewProps {
   editPostId?: string;
@@ -135,20 +134,16 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
   const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      try {
-        const compressedBase64 = await compressImage(file, 1200, 0.75);
-        const res = await api.uploadBlogImage(file.name, compressedBase64, 'image/jpeg');
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = (reader.result as string) || '';
+        const res = await api.uploadBlogImage(file.name, base64Data, file.type);
         if (res && res.url) {
           setFeaturedImage(res.url);
-          showToast('Featured cover image uploaded & optimized successfully!');
-        } else {
-          setFeaturedImage(compressedBase64);
-          showToast('Featured cover image applied successfully!');
+          showToast('Featured cover image uploaded successfully!');
         }
-      } catch (err) {
-        console.error('Featured image compression/upload failed:', err);
-        showToast('⚠️ Could not process image file.');
-      }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -164,15 +159,6 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
 
     setSaving(true);
     const finalStatus = targetStatus || status;
-
-    // Ensure admin token is synchronized before making the API request
-    if (!api.getToken() && user?.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com') {
-      try {
-        await api.claimAdminRole('mishrashashwat90@gmail.com');
-      } catch (e) {
-        console.warn('Could not auto-claim token:', e);
-      }
-    }
 
     const payload = {
       title: title.trim(),
@@ -191,25 +177,20 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
       if (editPostId) {
         const res = await api.updateBlog(editPostId, payload);
         if (res && res.success) {
-          showToast('✅ Article updated and live public cache purged successfully!');
-        } else {
-          showToast('⚠️ Failed to update article.');
+          showToast('Article updated successfully!');
         }
       } else {
         const res = await api.createBlog(payload);
         if (res && res.success) {
-          showToast('✅ Article published and live public feed revalidated!');
+          showToast('Article published successfully!');
           setTimeout(() => {
             onNavigate('/admin/blog');
           }, 1200);
-        } else {
-          showToast('⚠️ Failed to publish article.');
         }
       }
     } catch (err: any) {
       console.error('Failed to save article:', err);
-      const detail = err?.message || 'Server connection or authorization failure';
-      showToast(`⚠️ Error saving article: ${detail}`);
+      showToast('⚠️ Error saving article: ' + (err.message || 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -334,7 +315,7 @@ export const AdminBlogCreateView: React.FC<AdminBlogCreateViewProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Article Title: e.g. Modern Data Lakehouse Architecture with Apache Iceberg..."
+              placeholder="Article Title: e.g. Building Predictive Models in Google Colab..."
               className="w-full px-4 py-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-lg sm:text-xl font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
             />
 

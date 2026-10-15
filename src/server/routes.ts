@@ -63,45 +63,13 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 
 // Middleware: Require admin role (strictly restricted ONLY to mishrashashwat90@gmail.com)
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // 1. Direct authenticated user payload from JWT
   if (
     req.user &&
     req.user.role === 'admin' &&
-    req.user.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
+    req.user.email.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
   ) {
     return next();
   }
-
-  // 2. Direct Bearer token inspection
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const payload = verifyToken(token);
-    if (
-      payload &&
-      payload.role === 'admin' &&
-      payload.email?.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
-    ) {
-      req.user = payload;
-      return next();
-    }
-  }
-
-  // 3. Fallback: verified admin email header
-  const adminEmailHeader = req.headers['x-admin-email'];
-  if (
-    typeof adminEmailHeader === 'string' &&
-    adminEmailHeader.toLowerCase().trim() === 'mishrashashwat90@gmail.com'
-  ) {
-    req.user = {
-      userId: 'usr_owner_default',
-      email: 'mishrashashwat90@gmail.com',
-      role: 'admin',
-      exp: Math.floor(Date.now() / 1000) + 86400 * 30,
-    };
-    return next();
-  }
-
   return res.status(403).json({
     error: 'Access denied: Administrator privileges are strictly restricted to mishrashashwat90@gmail.com.',
   });
@@ -176,35 +144,6 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   const { passwordHash, ...user } = rawUser;
   const token = createToken({ userId: user.id, email: user.email, role: user.role });
   return res.json({ user, token });
-});
-
-// Admin Claim Endpoint
-apiRouter.post('/auth/claim-admin', (req: Request, res: Response) => {
-  const { email } = req.body || {};
-  const cleanEmail = String(email || '').toLowerCase().trim();
-  if (cleanEmail !== 'mishrashashwat90@gmail.com') {
-    return res.status(403).json({ error: 'Admin privileges are strictly restricted to mishrashashwat90@gmail.com.' });
-  }
-
-  let rawUser = db.getUserByEmail(cleanEmail);
-  if (!rawUser) {
-    db.createUser({
-      id: 'usr_owner_default',
-      name: 'Shashwat Mishra',
-      email: cleanEmail,
-      passwordHash: hashPassword('AdminPass2026!'),
-      role: 'admin',
-      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(cleanEmail)}`,
-      createdAt: new Date().toISOString(),
-    });
-    rawUser = db.getUserByEmail(cleanEmail);
-  } else if (rawUser.role !== 'admin') {
-    db.updateUser(rawUser.id, { role: 'admin' });
-    rawUser.role = 'admin';
-  }
-
-  const token = createToken({ userId: rawUser?.id || 'usr_owner_default', email: cleanEmail, role: 'admin' });
-  return res.json({ success: true, token, role: 'admin' });
 });
 
 // Google Account Sign-In / OAuth endpoint
@@ -1115,16 +1054,6 @@ apiRouter.get('/blogs', (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(total / limit) || 1;
 
-    console.log('[DEBUG_SERVER_GET_BLOGS] Public feed request:', {
-      page,
-      limit,
-      category: category || 'all',
-      totalInDatabase: db.getAllBlogsAdmin().length,
-      publishedTotal: total,
-      returnedCount: posts.length,
-      titles: posts.slice(0, 3).map(p => ({ title: p.title, status: p.status, createdAt: p.createdAt })),
-    });
-
     return res.json({
       posts,
       total,
@@ -1133,7 +1062,6 @@ apiRouter.get('/blogs', (req: Request, res: Response) => {
       totalPages,
     });
   } catch (err: any) {
-    console.error('[DEBUG_SERVER_GET_BLOGS] Error:', err);
     return res.status(500).json({ error: err.message || 'Failed to fetch blog posts.' });
   }
 });
@@ -1151,14 +1079,11 @@ apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
     const post = db.getBlogByIdOrSlug(slug);
 
     if (!post) {
-      console.warn('[DEBUG_SERVER_GET_BLOG_SLUG] Post not found by slug/id:', slug);
       return res.status(404).json({ error: 'Article not found.' });
     }
 
-    const isPublished = (post.status || 'published').toLowerCase().trim() === 'published';
-
     // Only published posts are public, unless requested with admin token
-    if (!isPublished) {
+    if (post.status !== 'published') {
       const authHeader = req.headers.authorization;
       let isAdmin = false;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -1169,7 +1094,6 @@ apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
         }
       }
       if (!isAdmin) {
-        console.warn('[DEBUG_SERVER_GET_BLOG_SLUG] Access denied - post is draft and requester is not admin:', { slug, status: post.status });
         return res.status(404).json({ error: 'Article not found or not published.' });
       }
     }
@@ -1177,10 +1101,8 @@ apiRouter.get('/blogs/:slug', (req: Request, res: Response) => {
     // Increment view count
     db.incrementBlogViews(post.id);
 
-    console.log('[DEBUG_SERVER_GET_BLOG_SLUG] Serving post:', { slug: post.slug, title: post.title, status: post.status });
     return res.json({ post });
   } catch (err: any) {
-    console.error('[DEBUG_SERVER_GET_BLOG_SLUG] Error:', err);
     return res.status(500).json({ error: err.message || 'Failed to retrieve article.' });
   }
 });
@@ -1253,7 +1175,7 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
       authorBio: 'Specializes in distributed data pipelines, cloud analytics warehousing, and Trust & Safety engineering at scale.',
       category: category || 'Data Analytics',
       tags: Array.isArray(tags) ? tags : ['Data Analytics'],
-      status: (status || 'published').toLowerCase().trim() === 'draft' ? 'draft' : 'published',
+      status: status === 'published' ? 'published' : 'draft',
       readTime,
       views: 0,
       featured: Boolean(featured),
@@ -1264,18 +1186,8 @@ apiRouter.post('/admin/blogs', requireAdmin, (req: AuthenticatedRequest, res: Re
 
     const saved = db.createBlog(newPost);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-
-    console.log('[DEBUG_SERVER_POST_BLOG] Admin created blog successfully:', {
-      id: saved.id,
-      title: saved.title,
-      slug: saved.slug,
-      status: saved.status,
-      totalInDatabaseNow: db.getAllBlogsAdmin().length,
-    });
-
     return res.status(201).json({ success: true, post: saved, revalidated: true });
   } catch (err: any) {
-    console.error('[DEBUG_SERVER_POST_BLOG] Error creating blog:', err);
     return res.status(500).json({ error: err.message || 'Failed to create blog post.' });
   }
 });
@@ -1287,15 +1199,10 @@ apiRouter.put('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) =>
     const existing = db.getBlogByIdOrSlug(id);
 
     if (!existing) {
-      console.warn('[DEBUG_SERVER_PUT_BLOG] Article not found to update:', id);
       return res.status(404).json({ error: 'Article not found.' });
     }
 
     const updates = { ...req.body };
-
-    if (updates.status) {
-      updates.status = updates.status.toLowerCase().trim() === 'draft' ? 'draft' : 'published';
-    }
 
     // Recalculate read time if content changed
     if (updates.content) {
@@ -1315,17 +1222,8 @@ apiRouter.put('/admin/blogs/:id', requireAdmin, (req: Request, res: Response) =>
 
     const updated = db.updateBlog(existing.id, updates);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-
-    console.log('[DEBUG_SERVER_PUT_BLOG] Admin updated blog successfully:', {
-      id: updated?.id,
-      title: updated?.title,
-      slug: updated?.slug,
-      status: updated?.status,
-    });
-
     return res.json({ success: true, post: updated, revalidated: true });
   } catch (err: any) {
-    console.error('[DEBUG_SERVER_PUT_BLOG] Error updating blog:', err);
     return res.status(500).json({ error: err.message || 'Failed to update blog post.' });
   }
 });
